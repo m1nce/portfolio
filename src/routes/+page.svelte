@@ -45,6 +45,10 @@
       <h3 class="panel-label">contact</h3>
       <p class="panel-skills">mcskim04@gmail.com</p>
     </div>
+    <div class="panel-section">
+      <h3 class="panel-label">interests</h3>
+      <p class="panel-skills">NBA, Formula 1, Science Based Lifting, Chicken and rice</p>
+    </div>
   </aside>
 </div>
 
