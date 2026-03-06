@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { base } from '$app/paths';
 
   export let title = '';
   export let description = '';
@@ -33,7 +34,7 @@
 
 <article class="project-card">
   {#if image}
-    <img src={image} alt={title} loading="lazy" />
+    <img src="{base}{image}" alt={title} loading="lazy" />
   {:else}
     <div class="image-placeholder" aria-hidden="true">
       {#if sparkline && sparkline.length > 1}
