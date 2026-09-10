@@ -2,7 +2,12 @@
   import { base } from '$app/paths';
   import DrivingScene from '$lib/components/DrivingScene.svelte';
   import ProjectCard from '$lib/components/ProjectCard.svelte';
+  import ProjectDemo from '$lib/components/ProjectDemo.svelte';
   import { projects } from '$lib/data/projects.js';
+  let drivingScene;
+  let parked = null;
+  let demoOpen = false;
+  $: if (parked === 'work') demoOpen = true;
 </script>
 
 <svelte:head>
@@ -12,16 +17,20 @@
 </svelte:head>
 
 <div class="mountain-journey">
-  <DrivingScene />
+  <DrivingScene bind:this={drivingScene} bind:parked />
 
   <section class="hero landmark-section" id="home" aria-labelledby="intro-title">
     <div class="landmark-content">
       <p class="landmark" data-landmark="Trailhead"><span>01</span> The trailhead</p>
       <p class="role">HCI researcher &amp; data scientist</p>
-      <h1 id="intro-title">Minchan<br />Kim<span>.</span></h1>
+      <h1 id="intro-title" tabindex="-1">Minchan<br />Kim<span>.</span></h1>
       <p class="intro-copy">I explore how people and AI<br class="desktop-break" /> can work better together.</p>
       <p class="intro-detail">Graduate student at UC San Diego.<br />Usually taking the scenic route.</p>
-      <a class="text-link" href="#work">Scroll to explore <span aria-hidden="true">↓</span></a>
+      <div class="journey-actions">
+        <button class="drive-button" on:click={() => drivingScene.startDrive()}>Start the drive <span aria-hidden="true">↑</span></button>
+        <button class="text-link" on:click={() => drivingScene.openMap()}>Browse road map ↗</button>
+      </div>
+      <p class="driving-hint">Use the arrow keys to drive. Pull over to explore.<br />Or simply scroll — every stop is open.</p>
     </div>
   </section>
 
@@ -29,10 +38,11 @@
     <div class="landmark-content">
       <p class="landmark" data-landmark="The overlook"><span>02</span> The overlook</p>
       <div class="section-heading">
-        <h2 id="work-title">Selected work</h2>
+        <h2 id="work-title" tabindex="-1">Selected work</h2>
         <a class="text-link" href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
       </div>
       <p class="section-intro">A few things I've built along the way.</p>
+      <div class="project-demo"><ProjectDemo bind:open={demoOpen} /></div>
       <div class="projects-grid">
         {#each projects as project}<ProjectCard {...project} />{/each}
       </div>
@@ -42,7 +52,7 @@
   <section class="landmark-section" id="about" aria-labelledby="about-title">
     <div class="landmark-content">
       <p class="landmark" data-landmark="A little background"><span>03</span> A little background</p>
-      <h2 id="about-title">Behind the wheel.</h2>
+      <h2 id="about-title" tabindex="-1">Behind the wheel.</h2>
       <div class="about-copy">
         <p>I study Data Science at UC San Diego, with a focus on human-computer interaction and machine learning.</p>
         <p>I'm especially interested in annotation interfaces: places where domain experts and AI models collaborate to make data more reliable.</p>
@@ -55,7 +65,7 @@
   <section class="landmark-section contact-section" id="contact" aria-labelledby="contact-title">
     <div class="landmark-content">
       <p class="landmark" data-landmark="Until the next drive"><span>04</span> Until the next drive</p>
-      <h2 id="contact-title">A good place<br />to say hello.</h2>
+      <h2 id="contact-title" tabindex="-1">A good place<br />to say hello.</h2>
       <p class="contact-copy">About research, something you're building,<br class="desktop-break" /> or your favorite stretch of road.</p>
       <a class="email-link" href="mailto:mcskim04@gmail.com">mcskim04@gmail.com <span aria-hidden="true">↗</span></a>
       <div class="social-links">
@@ -83,6 +93,13 @@
   .text-link { display: inline-flex; align-items: center; min-height: 44px; gap: 1rem; font-size: .82rem; font-weight: 550; text-decoration: none; border-bottom: 1px solid var(--border); }
   .text-link:hover { border-color: currentColor; }
   .text-link span { font-size: 1.2rem; }
+  .journey-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1.5rem; }
+  .journey-actions button { cursor: pointer; }
+  .journey-actions .text-link { background: none; border: 0; border-bottom: 1px solid var(--border); padding: 0; color: var(--text); }
+  .drive-button { display: inline-flex; align-items: center; gap: 1.5rem; min-height: 48px; padding: .7rem 1rem; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); font-size: .85rem; }
+  .drive-button:hover { background: var(--text); }
+  .driving-hint { margin: 1rem 0 0; font-size: .72rem; line-height: 1.7; color: var(--text-muted); }
+  .project-demo { margin-block: 2rem; }
   h2 { font: 500 clamp(2.5rem, 4.5vw, 4.5rem)/1 var(--font-display); letter-spacing: -.02em; margin: 0; }
   .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
   .section-heading .text-link { font-size: .75rem; }

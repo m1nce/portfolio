@@ -9,7 +9,7 @@ export const projects = [
   },
   {
     title: 'Portfolio Site',
-    description: 'A personal portfolio taking the scenic route, with a stock MX-5 and an illustrated mountain drive that follows your scroll.',
+    description: 'A personal portfolio taking the scenic route. Drive a stock MX-5 through an illustrated mountain pass and pull over to explore.',
     tags: ['SvelteKit', 'Interaction design', 'CSS'],
     link: 'https://github.com/m1nce/portfolio',
     image: '/img/mountain-terrain.png',

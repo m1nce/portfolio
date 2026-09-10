@@ -31,6 +31,7 @@
     {/each}
   </nav>
   <div class="header-tools">
+    {#if home}<button class="map-link" on:click={() => window.dispatchEvent(new Event('open-road-map'))}>Road map ↗</button>{/if}
     <span class="home-base">Based in San Diego, CA</span>
     <label class="theme-select">
       <span class="sr-only">Color theme</span>
@@ -42,3 +43,9 @@
     </label>
   </div>
 </header>
+
+<style>
+  .map-link { min-height: 44px; padding: 0; border: 0; background: none; color: var(--text); font-size: .8rem; }
+  .map-link:hover { text-decoration: underline; }
+  @media (max-width: 700px) { .map-link { display: none; } }
+</style>
