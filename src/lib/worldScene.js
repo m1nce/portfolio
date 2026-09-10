@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LANDMARKS, OBSTACLES, ROADS, ROAD_WIDTH, terrainHeight, roadDistance } from './world.js';
+import { cameraPose, cameraTerrainHeight } from './worldCamera.js';
 
 // The renderer follows the same coordinates as the driving model and the map.
 export function createWorldScene(canvas) {
@@ -81,9 +82,7 @@ export function createWorldScene(canvas) {
   const straw = new THREE.Color('#a5a172'), sage = new THREE.Color('#658366'), rock = new THREE.Color('#8d9484');
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i), z = positions.getZ(i);
-    const edge = Math.max(0, Math.max(Math.abs(x), Math.abs(z)) - 178);
-    const ridge = Math.min(edge / 50, 1) * (24 + 15 * Math.sin(x * 0.036) + 11 * Math.cos(z * 0.043) + 9 * Math.sin((x + z) * 0.029));
-    const height = terrainHeight(x, z) + ridge;
+    const height = cameraTerrainHeight(x, z);
     positions.setY(i, height);
     const patch = 0.5 + 0.25 * Math.sin(x * 0.077 + z * 0.039) + 0.19 * Math.cos(z * 0.093 - x * 0.021);
     const shade = straw.clone().lerp(sage, patch * 0.95).lerp(rock, Math.min(Math.max(height - 17, 0) / 35, 0.7));
@@ -431,18 +430,19 @@ export function createWorldScene(canvas) {
   car.scale.setScalar(1.18);
 
   const cameraTarget = new THREE.Vector3();
-  const desiredPosition = new THREE.Vector3();
   const desiredTarget = new THREE.Vector3();
+  const markerOffset = new THREE.Vector3();
+  let cameraHeading = 0, cameraDistance = 0, cameraHeight = 0;
   let firstFrame = true, previousHeading = 0, aspect = 1, disposed = false;
   function resize(width, height) {
     if (disposed || width <= 0 || height <= 0) return;
     aspect = width / height;
     camera.aspect = aspect;
-    camera.fov = aspect < 0.8 ? 48 : 43;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
+    firstFrame = true;
   }
-  function render(state, dt) {
+  function render(state, dt, view = 'overhead') {
     if (disposed) return;
     const h = terrainHeight(state.x, state.z);
     car.position.set(state.x, h + 0.1, state.z);
@@ -461,27 +461,31 @@ export function createWorldScene(canvas) {
     }
     previousHeading = state.heading;
     if (firstFrame || dt > 0) {
-      const phone = aspect < 0.8;
-      let framingX = state.x;
-      if (phone) {
-        let nearby, nearestDistance = 20;
-        for (const landmark of LANDMARKS) {
-          const distance = Math.hypot(state.x - landmark.x, state.z - landmark.z);
-          if (distance < nearestDistance) { nearby = landmark; nearestDistance = distance; }
-        }
-        if (nearby) framingX += THREE.MathUtils.clamp((nearby.x - state.x) * 0.3, -4, 4);
-      }
-      desiredPosition.set(framingX, h + (phone ? 25 : 15), state.z + (phone ? 37 : 33));
-      desiredTarget.set(framingX, h + 1, state.z - (phone ? 5 : 6));
-      const follow = firstFrame ? 1 : 1 - Math.exp(-dt * 5);
-      camera.position.lerp(desiredPosition, follow);
+      const pose = cameraPose(state, aspect, view);
+      desiredTarget.set(pose.target.x, pose.target.y, pose.target.z);
+      const desiredHeading = Math.atan2(pose.target.x - pose.position.x, -(pose.target.z - pose.position.z));
+      const desiredDistance = Math.hypot(pose.target.x - pose.position.x, pose.target.z - pose.position.z);
+      const follow = firstFrame ? 1 : 1 - Math.exp(-dt * 8);
+      // Orbit on the shortest arc, so switching opposing views never flies through the car.
+      const headingDifference = Math.atan2(Math.sin(desiredHeading - cameraHeading), Math.cos(desiredHeading - cameraHeading));
+      cameraHeading += headingDifference * follow;
+      cameraDistance = THREE.MathUtils.lerp(cameraDistance, desiredDistance, follow);
+      cameraHeight = THREE.MathUtils.lerp(cameraHeight, pose.position.y - pose.target.y, follow);
       cameraTarget.lerp(desiredTarget, follow);
+      camera.position.set(cameraTarget.x - Math.sin(cameraHeading) * cameraDistance,
+        cameraTarget.y + cameraHeight, cameraTarget.z + Math.cos(cameraHeading) * cameraDistance);
+      camera.position.y = Math.max(camera.position.y, cameraTerrainHeight(camera.position.x, camera.position.z) + 6);
+      camera.fov = THREE.MathUtils.lerp(camera.fov, pose.fov, follow);
+      camera.updateProjectionMatrix();
       camera.lookAt(cameraTarget);
       sun.position.set(state.x - 35, h + 75, state.z + 35);
       sun.target.position.set(state.x, h, state.z);
       firstFrame = false;
     }
+    markerOffset.set(0, 3.2, 0).applyQuaternion(camera.quaternion);
     for (const { object, landmark } of markers) {
+      // Keep names above the pixel sprites on screen, including the near-vertical view.
+      object.position.set(landmark.x, terrainHeight(landmark.x, landmark.z) + 1.45, landmark.z).add(markerOffset);
       const distance = Math.hypot(state.x - landmark.x, state.z - landmark.z);
       object.material.opacity = THREE.MathUtils.clamp((68 - distance) / 25, 0, 1);
       object.visible = distance < 68;
@@ -506,5 +510,5 @@ export function createWorldScene(canvas) {
     sun.shadow.dispose();
     renderer.dispose();
   }
-  return { render, resize, destroy };
+  return { render, resize, destroy, getCameraHeading: () => Math.atan2(Math.sin(cameraHeading), Math.cos(cameraHeading)) };
 }

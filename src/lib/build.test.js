@@ -9,7 +9,8 @@ assert.ok(existsSync(worldPath), 'Free driving must have a separately accessible
 const world = readFileSync(worldPath, 'utf8');
 assert.match(world, /<canvas/, 'The world must contain a real rendering surface');
 assert.doesNotMatch(world, /<header class="site-header/, 'The portfolio header must not obscure the game');
-for (const label of ['Valley map', 'Pause', 'Driving joystick']) assert.ok(world.includes(label), `Missing accessible game control: ${label}`);
+for (const label of ['Valley map', 'Pause', 'Driving joystick', 'Change camera']) assert.ok(world.includes(label), `Missing accessible game control: ${label}`);
+assert.ok(world.includes('data-camera="overhead"'), 'The world must open in the overhead view');
 for (const match of home.matchAll(/<img[^>]*src="([^"]+)"/g)) {
   const relative = match[1].replace(/^\/portfolio\//, '/').replace(/^\//, '');
   assert.ok(existsSync(new URL(`../../build/${relative}`, import.meta.url)), `Missing built image: ${match[1]}`);

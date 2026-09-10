@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "check": "vite build && node src/lib/world.test.js && node src/lib/build.test.js",
+    "check": "vite build && node src/lib/world.test.js && node src/lib/worldCamera.test.js && node src/lib/build.test.js",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { base } from '$app/paths';
   import { SPAWN, WORLD_SIZE, ROADS, LANDMARKS, stepWorldCar, joystickInput, nearestLandmark } from '$lib/world.js';
+  import { CAMERA_VIEWS } from '$lib/worldCamera.js';
 
   let canvas;
   let panel;
@@ -18,11 +19,17 @@
   let stickPointer = null;
   let stickElement;
   let braking = false;
+  let cameraIndex = 0;
   const keys = new Set();
   const roadPaths = ROADS.map(points => points.map(p => `${p.x},${p.z}`).join(' '));
   $: nearby = nearestLandmark(car);
   $: distance = destination ? Math.round(Math.hypot(destination.x - car.x, destination.z - car.z)) : 0;
   $: stopped = paused || !!modal || !ready || !!error;
+  $: cameraView = CAMERA_VIEWS[cameraIndex];
+
+  function cycleCamera() {
+    if (!stopped) cameraIndex = (cameraIndex + 1) % CAMERA_VIEWS.length;
+  }
 
   function releaseControls() {
     keys.clear();
@@ -59,6 +66,7 @@
     if (event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
     if (event.altKey || event.ctrlKey || event.metaKey || modal) return;
     const key = event.key.toLowerCase();
+    if (key === 'c' && !event.repeat) { event.preventDefault(); cycleCamera(); return; }
     if (key === 'm' && !event.repeat) { event.preventDefault(); openPanel('map'); return; }
     if ((key === 'escape' || key === 'p') && !event.repeat) { event.preventDefault(); openPanel('pause'); return; }
     if (key === 'e' && !event.repeat && nearby && !stopped) { event.preventDefault(); openPanel('talk'); return; }
@@ -118,13 +126,13 @@
         const dt = lastTime ? Math.min((time - lastTime) / 1000, .05) : 0;
         lastTime = time;
         if (!stopped) {
-          const input = stickPointer !== null ? joystickInput(stick.x, stick.y) : {
+          const input = stickPointer !== null ? joystickInput(stick.x, stick.y, scene.getCameraHeading()) : {
             throttle: Number(keys.has('arrowup') || keys.has('w')) - Number(keys.has('arrowdown') || keys.has('s')),
             steering: Number(keys.has('arrowright') || keys.has('d')) - Number(keys.has('arrowleft') || keys.has('a'))
           };
           car = stepWorldCar(car, { ...input, brake: braking || keys.has(' ') }, dt);
         }
-        if (!error) scene.render(car, stopped ? 0 : dt);
+        if (!error) scene.render(car, stopped ? 0 : dt, cameraView.id);
         frame = requestAnimationFrame(animate);
       }
       frame = requestAnimationFrame(animate);
@@ -149,16 +157,20 @@
   <meta name="theme-color" content="#233c2e" />
 </svelte:head>
 
-<div class="world" data-ready={ready} data-paused={stopped} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
-  <canvas bind:this={canvas} tabindex="0" aria-label="Open valley driving world. Arrow keys or WASD to drive, Space to brake, E to talk, M for map, P to pause."></canvas>
+<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
+  <canvas bind:this={canvas} tabindex="0" aria-label="Open valley driving world. Arrow keys or WASD to drive, Space to brake, E to talk, M for map, C to change camera, P to pause."></canvas>
   <header class="world-header">
     <a class="portfolio-link" href="{base}/"><span aria-hidden="true">↖</span> Portfolio</a>
     <div class="world-title"><span>MINCHAN'S WORLD</span><strong>The scenic route.</strong></div>
     <div class="header-actions">
+      <button class="hud-button camera-button" on:click={cycleCamera} disabled={stopped} aria-label="Change camera. Current view: {cameraView.label}" aria-keyshortcuts="C" title="Change camera (C)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5 6 8H3v12h18V8h-3l-2-3Z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="camera-label">{cameraView.label}</span><kbd>C</kbd>
+      </button>
       <button class="hud-button" on:click={() => openPanel('map')} aria-label="Valley map"><span aria-hidden="true">⌖</span><span class="button-word"> Map</span></button>
       <button class="hud-button pause-button" on:click={() => openPanel('pause')} aria-label="Pause"><span aria-hidden="true">Ⅱ</span></button>
     </div>
   </header>
+  <span class="sr-only" role="status">Camera: {cameraView.label}</span>
 
   <aside class="location-card" aria-label="Your location">
     <span class="eyebrow">SOUTHERN CALIFORNIA · OPEN VALLEY</span>
@@ -239,7 +251,7 @@
     {:else}
       <h2 id="panel-title">Enjoy the pause.</h2>
       <p>A small open world. No timer, no required route.</p>
-      <dl><dt>Drive</dt><dd>WASD / arrow keys</dd><dt>Brake / reverse</dt><dd>Down / S</dd><dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
+      <dl><dt>Drive</dt><dd>WASD / arrow keys</dd><dt>Brake / reverse</dt><dd>Down / S</dd><dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
       <button class="primary-link" on:click={() => { paused = false; closePanel(); }}>Resume driving →</button>
       <button class="topic-option" on:click={resetCar}>Return to the garage <span>↩</span></button>
       <a class="text-button" href="{base}/">Take the direct route to my portfolio ↗</a>
@@ -256,12 +268,15 @@
   .world-header > * { pointer-events: auto; }
   .portfolio-link, .hud-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; padding: 0 18px; border: 1px solid #52644650; background: #faf8eceb; border-radius: 5px; text-decoration: none; font-size: 13px; }
   .portfolio-link:hover, .hud-button:hover { background: #fffdf1; }
-  .world-title { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; color: #273e2d; text-shadow: 0 1px #f5f0d588; }
+  .world-title { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; color: #273e2d; background: #faf8eceb; padding: 5px 16px; border: 1px solid #52644650; border-radius: 5px; }
   .world-title span { display: block; font-size: 9px; letter-spacing: .19em; }
   .world-title strong { font: 500 30px var(--font-display); }
   .header-actions { display: flex; gap: 8px; }
   .hud-button > span:first-child { font-size: 21px; }
   .pause-button { width: 48px; padding: 0; }
+  .camera-button svg { width: 20px; height: 20px; }
+  .camera-button .camera-label { font-size: 12px; }
+  .camera-button:disabled { cursor: default; opacity: .65; }
   .location-card { position: absolute; top: 117px; left: 32px; padding: 17px 20px; max-width: 355px; border-left: 2px solid #476240; background: #f8f5e6e8; }
   .eyebrow { font-size: 9px; font-weight: 600; letter-spacing: .12em; }
   .location-card h1 { font: 500 28px var(--font-display); margin: 6px 0; }
@@ -320,6 +335,7 @@
     .world-header { inset: max(15px, env(safe-area-inset-top)) 16px auto; }
     .world-title strong { font-size: 25px; }.world-title span { font-size: 8px; }
     .portfolio-link, .hud-button { padding: 0 12px; min-height: 46px; font-size: 12px; }.pause-button { width: 44px; }
+    .camera-button { min-width: 77px; padding-inline: 10px; }.camera-button svg, .camera-button kbd { display: none; }.camera-button .camera-label { font-size: 11px; }
     .location-card { left: 18px; top: 89px; padding: 10px 13px; max-width: calc(100% - 147px); }
     .location-card .eyebrow { font-size: 7px; letter-spacing: .06em; }.location-card h1 { font-size: 24px; }.location-card p { font-size: 10px; }
     .mini-map { top: 89px; right: 16px; width: 105px; padding: 5px; }.mini-map > span { font-size: 8px; }
@@ -339,7 +355,7 @@
   @media (max-width: 560px) {
     .world-title { display: none; }.location-card { top: 84px; max-width: calc(100% - 140px); }.mini-map { top: 84px; }
     .location-card h1 { font-size: 23px; }.location-card .eyebrow { display: none; }.location-card p { line-height: 1.6; }
-    .button-word { display: inline; }.header-actions { gap: 6px; }
+    .button-word { display: none; }.header-actions { gap: 6px; }
     .map-dialog h2 { font-size: 34px; }.map-dialog > p { font-size: 12px; }
     .large-map { height: min(30vh, 245px); }dl { grid-template-columns: 105px 1fr; }
   }

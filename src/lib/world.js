@@ -108,12 +108,12 @@ for (let attempts = 0; OBSTACLES.length < 76 && attempts < 1000; attempts++) {
   OBSTACLES.push(tree);
 }
 
-export function joystickInput(x, y) {
+export function joystickInput(x, y, cameraHeading = 0) {
   const neutral = { throttle: 0, steering: 0, brake: false };
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return neutral;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(cameraHeading)) return neutral;
   const magnitude = Math.min(1, Math.hypot(x, y));
   if (magnitude <= 0.16) return neutral;
-  return { ...neutral, throttle: (magnitude - 0.16) / 0.84, targetHeading: Math.atan2(x, -y) };
+  return { ...neutral, throttle: (magnitude - 0.16) / 0.84, targetHeading: wrapAngle(Math.atan2(x, -y) + cameraHeading) };
 }
 
 export function stepWorldCar(state, input = {}, dt) {

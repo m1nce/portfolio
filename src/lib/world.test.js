@@ -22,6 +22,16 @@ for (const [x, y, heading] of [[0, -1, 0], [1, 0, Math.PI / 2], [0, 1, Math.PI],
 }
 assert.equal(joystickInput(3, 4).throttle, 1, 'Dragging outside the pad must cap throttle');
 assert.ok(joystickInput(0, -0.5).throttle > 0 && joystickInput(0, -0.5).throttle < 1);
+for (const cameraHeading of [-Math.PI, -Math.PI / 2, -.4, 0, .4, Math.PI / 2, Math.PI]) {
+  for (const [x, y] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+    const { targetHeading } = joystickInput(x, y, cameraHeading);
+    const worldX = Math.sin(targetHeading), worldZ = -Math.cos(targetHeading);
+    const screenX = worldX * Math.cos(cameraHeading) + worldZ * Math.sin(cameraHeading);
+    const screenY = -worldX * Math.sin(cameraHeading) + worldZ * Math.cos(cameraHeading);
+    assert.ok(screenX * x + screenY * y > .999, 'Joystick travel must match the visible screen direction in every camera view');
+  }
+}
+assert.deepEqual(joystickInput(1, 0, NaN), idle, 'An invalid camera heading must fail neutral');
 
 // Pick a clear patch away from roads: free roaming must not snap back to a lane.
 const clear = { x: 55, z: 50, heading: 0, speed: 0 };
