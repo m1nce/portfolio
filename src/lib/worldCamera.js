@@ -6,12 +6,7 @@ export const CAMERA_VIEWS = [
   { id: 'chase', label: 'Chase' }
 ];
 
-export function cameraTerrainHeight(x, z) {
-  const edge = Math.max(0, Math.max(Math.abs(x), Math.abs(z)) - 178);
-  const ridge = Math.min(edge / 50, 1) * (24 + 15 * Math.sin(x * 0.036)
-    + 11 * Math.cos(z * 0.043) + 9 * Math.sin((x + z) * 0.029));
-  return terrainHeight(x, z) + ridge;
-}
+export const cameraTerrainHeight = terrainHeight;
 
 export function cameraPose(state, aspect, view = 'overhead') {
   const phone = aspect < 0.8;

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LANDMARKS, OBSTACLES, ROADS, ROAD_WIDTH, terrainHeight, roadDistance } from './world.js';
+import { WORLD_SIZE, LANDMARKS, DISCOVERIES, WATER, OBSTACLES, ROADS, ROAD_WIDTH, terrainHeight, roadDistance } from './worldMap.js';
 import { cameraPose, cameraTerrainHeight } from './worldCamera.js';
+import { createNB2 } from './nb2Model.js';
 
 // The renderer follows the same coordinates as the driving model and the map.
 export function createWorldScene(canvas) {
@@ -15,8 +16,8 @@ export function createWorldScene(canvas) {
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog('#becbc8', 140, 440);
-  const camera = new THREE.PerspectiveCamera(43, 1, 0.2, 650);
+  scene.fog = new THREE.Fog('#becbc8', 230, WORLD_SIZE);
+  const camera = new THREE.PerspectiveCamera(43, 1, 0.2, WORLD_SIZE + 400);
   const sky = new THREE.HemisphereLight('#d9e8e1', '#8c7856', 1.65);
   scene.add(sky);
   const sun = new THREE.DirectionalLight('#ffe3b0', 2.6);
@@ -41,7 +42,6 @@ export function createWorldScene(canvas) {
   };
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const cylinderGeometry = new THREE.CylinderGeometry(1, 1, 1, 10);
-  const sphereGeometry = new THREE.SphereGeometry(1, 12, 8);
   function mesh(geometry, mat, parent = scene) {
     const object = new THREE.Mesh(geometry, mat);
     object.castShadow = true;
@@ -75,7 +75,8 @@ export function createWorldScene(canvas) {
   }
 
   // Hills beyond the driving boundary give the valley a horizon in every direction.
-  const terrain = new THREE.PlaneGeometry(680, 680, 170, 170);
+  const terrainExtent = WORLD_SIZE + 440;
+  const terrain = new THREE.PlaneGeometry(terrainExtent, terrainExtent, Math.ceil(terrainExtent / 5), Math.ceil(terrainExtent / 5));
   terrain.rotateX(-Math.PI / 2);
   const positions = terrain.attributes.position;
   const groundColors = [];
@@ -84,8 +85,10 @@ export function createWorldScene(canvas) {
     const x = positions.getX(i), z = positions.getZ(i);
     const height = cameraTerrainHeight(x, z);
     positions.setY(i, height);
-    const patch = 0.5 + 0.25 * Math.sin(x * 0.077 + z * 0.039) + 0.19 * Math.cos(z * 0.093 - x * 0.021);
-    const shade = straw.clone().lerp(sage, patch * 0.95).lerp(rock, Math.min(Math.max(height - 17, 0) / 35, 0.7));
+    const patch = 0.5 + 0.25 * Math.sin(x * 0.027 + z * 0.019) + 0.19 * Math.cos(z * 0.043 - x * 0.021);
+    const slope = Math.hypot(terrainHeight(x + 2, z) - terrainHeight(x - 2, z), terrainHeight(x, z + 2) - terrainHeight(x, z - 2)) / 4;
+    const shade = straw.clone().lerp(sage, patch * 0.8 + Math.max(0, -z / WORLD_SIZE) * 0.3)
+      .lerp(rock, Math.min(Math.max(height - 90, 0) / 70 + Math.max(0, slope - 0.22) * 1.2, 0.8));
     shade.multiplyScalar(0.95 + random() * 0.1);
     groundColors.push(shade.r, shade.g, shade.b);
   }
@@ -93,6 +96,19 @@ export function createWorldScene(canvas) {
   terrain.computeVertexNormals();
   const ground = mesh(terrain, material('#ffffff', { vertexColors: true }));
   ground.castShadow = false;
+
+  for (const lake of WATER) {
+    const surface = mesh(new THREE.CircleGeometry(1, 80), material('#547f7c', { roughness: 0.25, metalness: 0.32 }));
+    surface.rotation.x = -Math.PI / 2;
+    surface.scale.set(lake.rx, lake.rz, 1);
+    surface.position.set(lake.x, lake.level + 0.08, lake.z);
+    surface.castShadow = false;
+    const shoreline = mesh(new THREE.RingGeometry(0.99, 1.035, 80), material('#c8ba91', { roughness: 0.95 }));
+    shoreline.rotation.x = -Math.PI / 2;
+    shoreline.scale.set(lake.rx, lake.rz, 1);
+    shoreline.position.set(lake.x, lake.level + 0.1, lake.z);
+    shoreline.castShadow = false;
+  }
 
   function ribbon(points, width, mat, offset = 0, lift = 0.075) {
     const vertices = [], indices = [];
@@ -121,16 +137,26 @@ export function createWorldScene(canvas) {
     object.castShadow = false;
     return object;
   }
+  const roadJunctions = ROADS.slice(1).flatMap(road => [road[0], road.at(-1)])
+    .filter(point => ROADS.filter(road => road.some(other => Math.hypot(point.x - other.x, point.z - other.z) < .01)).length > 1);
+  const atJunction = point => roadJunctions.some(junction => Math.hypot(point.x - junction.x, point.z - junction.z) < ROAD_WIDTH * 1.35);
+  for (const road of ROADS) ribbon(road, ROAD_WIDTH + 2.3, colors.shoulder, 0, 0.035);
+  for (const road of ROADS) ribbon(road, ROAD_WIDTH, colors.asphalt);
   for (const road of ROADS) {
-    ribbon(road, ROAD_WIDTH + 2.3, colors.shoulder, 0, 0.035);
-    ribbon(road, ROAD_WIDTH, colors.asphalt);
-    ribbon(road, 0.09, colors.line, ROAD_WIDTH / 2 - 0.4, 0.095);
-    ribbon(road, 0.09, colors.line, -ROAD_WIDTH / 2 + 0.4, 0.095);
+    let section = [];
+    for (let i = 0; i <= road.length; i++) {
+      if (i < road.length && !atJunction(road[i])) { section.push(road[i]); continue; }
+      if (section.length > 1) {
+        ribbon(section, 0.09, colors.line, ROAD_WIDTH / 2 - 0.4, 0.095);
+        ribbon(section, 0.09, colors.line, -ROAD_WIDTH / 2 + 0.4, 0.095);
+      }
+      section = [];
+    }
     let distance = 0;
     const dashes = [];
     for (let i = 1; i < road.length; i++) {
       distance += Math.hypot(road[i].x - road[i - 1].x, road[i].z - road[i - 1].z);
-      if (distance % 8 < 3.4) {
+      if (distance % 8 < 3.4 && !atJunction(road[i]) && !atJunction(road[i - 1])) {
         const dash = ribbon([road[i - 1], road[i]], 0.16, colors.line, 0, 0.1);
         scene.remove(dash);
         dashes.push(dash.geometry);
@@ -186,6 +212,7 @@ export function createWorldScene(canvas) {
     group.position.set(obstacle.x, terrainHeight(obstacle.x, obstacle.z), obstacle.z);
     scene.add(group);
     if (obstacle.kind === 'garage') {
+      group.rotation.y = Math.PI;
       groundPatch(obstacle.x + 5, obstacle.z - 2, 23, 21, colors.shoulder);
       box(group, colors.wall, [10, 4.2, 8], [0, 2.1, 0]);
       roof(group, 11.3, 9.3, 1.55, 4.2, colors.roof);
@@ -200,7 +227,8 @@ export function createWorldScene(canvas) {
       box(group, colors.darkWood, [1.2, 1.5, 1], [5.7, 0.75, 2]);
       box(group, material('#b95d42'), [0.75, 1.8, 0.65], [-5.7, 0.9, 3]);
     } else if (obstacle.kind === 'field-station') {
-      groundPatch(obstacle.x - 4, obstacle.z + 1, 25, 17, colors.shoulder);
+      group.rotation.y = Math.PI;
+      groundPatch(obstacle.x - 4, obstacle.z - 10, 25, 28, colors.shoulder);
       box(group, colors.wall, [9.5, 4.4, 7], [0, 2.2, 0]);
       roof(group, 11, 8.5, 1.9, 4.4, colors.roof);
       box(group, colors.wood, [11, 0.4, 3], [0, 0.3, 4.4]);
@@ -216,7 +244,7 @@ export function createWorldScene(canvas) {
       beam(group, colors.wood, [5, 0, 6], [5, 6.4, 6], 0.1);
       box(group, material('#c08b4f'), [1.6, 0.8, 0.035], [5.75, 5.7, 6]);
     } else {
-      groundPatch(obstacle.x - 5, obstacle.z + 3, 25, 22, colors.shoulder);
+      groundPatch(obstacle.x - 4, obstacle.z + 10, 25, 30, colors.shoulder);
       box(group, colors.wall, [12, 0.65, 10], [0, 0.3, 0]);
       for (const x of [-5, 5]) for (const z of [-4, 4]) cylinder(group, colors.wood, 0.22, 4.9, [x, 2.9, z]);
       roof(group, 13, 11, 2.2, 5.3, material('#815c45'));
@@ -235,6 +263,74 @@ export function createWorldScene(canvas) {
     }
   }
 
+  for (const place of DISCOVERIES) {
+    groundPatch(place.x, place.z, 17, 19, colors.shoulder);
+    const sign = new THREE.Group();
+    sign.position.set(place.x + 7, terrainHeight(place.x + 7, place.z + 6), place.z + 6);
+    scene.add(sign);
+    for (const x of [-2.1, 2.1]) cylinder(sign, colors.wood, 0.1, 2.5, [x, 1.25, 0]);
+    box(sign, colors.wood, [5.7, 1.45, .1], [0, 2, -.06]);
+    buildingSign(sign, place.name, 0, 2.0, 0, 5.6);
+  }
+  for (const obstacle of OBSTACLES) {
+    if (!['tower', 'picnic-table', 'bench'].includes(obstacle.kind)) continue;
+    const group = new THREE.Group();
+    group.position.set(obstacle.x, terrainHeight(obstacle.x, obstacle.z), obstacle.z);
+    scene.add(group);
+    if (obstacle.kind === 'tower') {
+      for (const x of [-2.5, 2.5]) for (const z of [-2.5, 2.5]) {
+        cylinder(group, colors.darkWood, 0.22, 7, [x, 3.5, z]);
+        beam(group, colors.wood, [x, .5, z], [-x, 6, z], .09);
+      }
+      box(group, colors.wood, [6.5, .3, 6.5], [0, 6.3, 0]);
+      for (const x of [-2.8, 2.8]) for (const z of [-2.8, 2.8]) cylinder(group, colors.wood, .14, 2.8, [x, 7.8, z]);
+      for (const z of [-2.8, 2.8]) {
+        beam(group, colors.wood, [-2.8, 7.4, z], [2.8, 7.4, z], .1);
+        box(group, colors.wall, [4.8, .65, .1], [0, 8.1, z]);
+      }
+      const cap = mesh(new THREE.ConeGeometry(5, 2, 4), colors.roof, group);
+      cap.position.y = 9.8; cap.rotation.y = Math.PI / 4;
+      for (let step = 0; step < 12; step++) box(group, colors.wood, [1.1, .12, .35], [3.6, .3 + step * .5, 2 - step * .35]);
+    } else {
+      const table = obstacle.kind === 'picnic-table';
+      box(group, colors.wood, [3.3, .16, table ? 1.4 : .65], [0, table ? 1.05 : .75, 0]);
+      for (const x of [-1.2, 1.2]) {
+        box(group, colors.darkWood, [.18, table ? 1 : .7, .55], [x, table ? .5 : .35, 0]);
+      }
+      if (table) for (const z of [-1.1, 1.1]) box(group, colors.wood, [3.5, .13, .4], [0, .65, z]);
+      if (!table) box(group, colors.wood, [3.3, .6, .13], [0, 1.05, .36]);
+    }
+  }
+
+  // One mesh for the uphill road's guardrails; posts are instanced below it.
+  const railVertices = [], railIndices = [], railPosts = [];
+  const mountainRoad = ROADS[0];
+  const junctions = ROADS.slice(1).flatMap(road => [road[0], road.at(-1)]);
+  for (let i = 1; i < mountainRoad.length; i++) {
+    const a = mountainRoad[i - 1], b = mountainRoad[i];
+    if (b.z > -25 || [...LANDMARKS, ...DISCOVERIES, ...junctions].some(point => Math.hypot(point.x - b.x, point.z - b.z) < 25)) continue;
+    const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+    const nx = -dz / length, nz = dx / length;
+    const side = terrainHeight(b.x + nx * 8, b.z + nz * 8) < terrainHeight(b.x - nx * 8, b.z - nz * 8) ? 1 : -1;
+    const offset = side * (ROAD_WIDTH / 2 + .8);
+    const points = [a, b].map(point => ({ x: point.x + nx * offset, z: point.z + nz * offset }));
+    const base = railVertices.length / 3;
+    for (const point of points) for (const lift of [.78, 1.06]) railVertices.push(point.x, terrainHeight(point.x, point.z) + lift, point.z);
+    railIndices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+    if (i % 5 === 0) railPosts.push(points[1]);
+  }
+  const railGeometry = new THREE.BufferGeometry();
+  railGeometry.setAttribute('position', new THREE.Float32BufferAttribute(railVertices, 3));
+  railGeometry.setIndex(railIndices); railGeometry.computeVertexNormals();
+  mesh(railGeometry, material('#a6aaa0', { metalness: .4, roughness: .6, side: THREE.DoubleSide }));
+  const posts = new THREE.InstancedMesh(boxGeometry, colors.darkWood, railPosts.length);
+  const postTransform = new THREE.Object3D();
+  railPosts.forEach((point, index) => {
+    postTransform.position.set(point.x, terrainHeight(point.x, point.z) + .5, point.z);
+    postTransform.scale.set(.12, 1, .12); postTransform.updateMatrix(); posts.setMatrixAt(index, postTransform.matrix);
+  });
+  posts.castShadow = true; scene.add(posts);
+
   const treePositions = OBSTACLES.filter((obstacle) => obstacle.kind === 'tree');
   const trunks = new THREE.InstancedMesh(cylinderGeometry, colors.trunk, treePositions.length);
   const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), colors.leaves, treePositions.length * 3);
@@ -247,7 +343,7 @@ export function createWorldScene(canvas) {
     transform.scale.set(0.34 + random() * 0.2, height * 0.75, 0.34);
     transform.rotation.set(0, random() * 6, 0.04);
     transform.updateMatrix(); trunks.setMatrixAt(index, transform.matrix);
-    if (index % 3 === 0) {
+    if (tree.z < -100 || index % 5 === 0) {
       for (let layer = 0; layer < 2; layer++) {
         transform.position.set(tree.x, y + height * (0.6 + layer * 0.3), tree.z);
         transform.scale.set(height * (0.34 - layer * 0.07), height * 0.72, height * (0.34 - layer * 0.07));
@@ -272,6 +368,14 @@ export function createWorldScene(canvas) {
     object.position.set(rock.x, terrainHeight(rock.x, rock.z) + rock.radius * 0.35, rock.z);
     object.scale.set(rock.radius, rock.radius * 0.75, rock.radius * 0.85);
     object.rotation.set(0.2, random() * 6, 0.12);
+    if (rock.radius >= 7) {
+      for (let layer = 0; layer < 3; layer++) {
+        const face = mesh(new THREE.DodecahedronGeometry(1, 0), colors.stone);
+        face.position.set(rock.x + Math.sin(layer * 2) * rock.radius * .4, terrainHeight(rock.x, rock.z) + layer * rock.radius * .25, rock.z + Math.cos(layer * 2) * rock.radius * .3);
+        face.scale.set(rock.radius * (.85 - layer * .1), rock.radius * .28, rock.radius * .6);
+        face.rotation.set(.03, layer * .3, .1);
+      }
+    }
   }
   const tuftGeometry = new THREE.BufferGeometry();
   tuftGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -280,11 +384,12 @@ export function createWorldScene(canvas) {
     0, 0, -0.16, 0, 0.7, 0.09, 0, 0, 0.08,
   ], 3));
   tuftGeometry.computeVertexNormals();
-  const tufts = new THREE.InstancedMesh(tuftGeometry, colors.grass, 1700);
+  const tufts = new THREE.InstancedMesh(tuftGeometry, colors.grass, 4200);
   let tuftCount = 0;
-  for (let i = 0; i < 2400 && tuftCount < 1700; i++) {
-    const x = (random() - 0.5) * 345, z = (random() - 0.5) * 345;
-    if (roadDistance(x, z) < ROAD_WIDTH / 2 + 1.2 || LANDMARKS.some((point) => Math.hypot(point.x - x, point.z - z) < 17)) continue;
+  for (let i = 0; i < 6200 && tuftCount < 4200; i++) {
+    const x = (random() - 0.5) * (WORLD_SIZE - 20), z = (random() - 0.5) * (WORLD_SIZE - 20);
+    if (roadDistance(x, z) < ROAD_WIDTH / 2 + 1.2 || [...LANDMARKS, ...DISCOVERIES].some((point) => Math.hypot(point.x - x, point.z - z) < 17)
+      || WATER.some(lake => Math.hypot((x - lake.x) / (lake.rx + 3), (z - lake.z) / (lake.rz + 3)) < 1)) continue;
     transform.position.set(x, terrainHeight(x, z), z);
     const scale = 0.65 + random() * 1.5;
     transform.scale.set(scale, scale * (0.5 + random() * 0.5), scale);
@@ -351,83 +456,15 @@ export function createWorldScene(canvas) {
     markers.push({ object: marker, landmark });
   }
 
-  const car = new THREE.Group();
+  for (const landmark of DISCOVERIES) {
+    const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture(landmark.name, '#e9d8a7', '#304d40'), transparent: true, depthWrite: false }));
+    marker.scale.set(7.2, 1.8, 1);
+    scene.add(marker);
+    markers.push({ object: marker, landmark });
+  }
+
+  const { car, wheels } = createNB2();
   scene.add(car);
-  const green = material('#164e3c', { metalness: 0.5, roughness: 0.32 });
-  const greenDark = material('#10382e', { metalness: 0.35, roughness: 0.4 });
-  const black = material('#222b29', { roughness: 0.75 });
-  const rubber = material('#262b29', { roughness: 0.95 });
-  const silver = material('#c1c9c1', { metalness: 0.7, roughness: 0.25 });
-  const tan = material('#b99964', { roughness: 0.8 });
-  const lamp = material('#e5e8ce', { metalness: 0.25, roughness: 0.2, emissive: '#91876a', emissiveIntensity: 0.15 });
-  const red = material('#b9483b', { roughness: 0.25, metalness: 0.2 });
-  // A continuous rounded hull gives the NB2 its low nose and tapered stock body.
-  const sections = [
-    [-2.04, 0.66, 0.91], [-1.78, 0.84, 1.01], [-1.23, 0.91, 1.04],
-    [-0.55, 0.88, 1.02], [0.35, 0.87, 1.04], [1.22, 0.91, 1.09], [1.8, 0.84, 1.05], [2.04, 0.67, 0.91],
-  ];
-  const hullVertices = [], hullIndices = [];
-  const profile = [[-0.78, 0.46], [-1, 0.61], [-1, 0.85], [-0.9, 1], [-0.56, 1.025], [0, 1.03], [0.56, 1.025], [0.9, 1], [1, 0.85], [1, 0.61], [0.78, 0.46], [0, 0.44]];
-  sections.forEach(([z, width, top], index) => {
-    for (const [x, y] of profile) hullVertices.push(x * width, y * top, z);
-    if (index < sections.length - 1) for (let j = 0; j < profile.length; j++) {
-      const a = index * profile.length + j, b = index * profile.length + (j + 1) % profile.length;
-      hullIndices.push(a, a + profile.length, b, b, a + profile.length, b + profile.length);
-    }
-  });
-  for (let i = 1; i < profile.length - 1; i++) {
-    hullIndices.push(0, i, i + 1);
-    const end = (sections.length - 1) * profile.length;
-    hullIndices.push(end, end + i + 1, end + i);
-  }
-  const hullGeometry = new THREE.BufferGeometry();
-  hullGeometry.setAttribute('position', new THREE.Float32BufferAttribute(hullVertices, 3));
-  hullGeometry.setIndex(hullIndices); hullGeometry.computeVertexNormals();
-  mesh(hullGeometry, green, car);
-  box(car, greenDark, [1.74, 0.12, 2.35], [0, 0.48, 0]);
-  box(car, black, [1.49, 0.085, 1.46], [0, 1.095, 0.35]);
-  box(car, tan, [1.31, 0.08, 0.22], [0, 1.12, 1.07]);
-  for (const x of [-0.37, 0.37]) {
-    box(car, tan, [0.48, 0.16, 0.47], [x, 1.19, 0.4]);
-    const back = box(car, tan, [0.46, 0.56, 0.17], [x, 1.48, 0.66]); back.rotation.x = -0.1;
-    const headrest = mesh(sphereGeometry, tan, car); headrest.scale.set(0.18, 0.16, 0.11); headrest.position.set(x, 1.78, 0.69);
-  }
-  box(car, black, [1.35, 0.17, 0.32], [0, 1.24, -0.36]);
-  const windshieldGeometry = new THREE.BufferGeometry();
-  windshieldGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-0.73, 1.16, -0.54, 0.73, 1.16, -0.54, -0.65, 1.86, -0.12, 0.65, 1.86, -0.12], 3));
-  windshieldGeometry.setIndex([0, 1, 2, 2, 1, 3]); windshieldGeometry.computeVertexNormals();
-  mesh(windshieldGeometry, material('#adc2bb', { metalness: 0.2, roughness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide }), car);
-  for (const side of [-1, 1]) beam(car, greenDark, [side * 0.73, 1.15, -0.54], [side * 0.65, 1.87, -0.12], 0.043);
-  beam(car, greenDark, [-0.65, 1.87, -0.12], [0.65, 1.87, -0.12], 0.043);
-  beam(car, black, [-0.73, 1.16, -0.54], [0.73, 1.16, -0.54], 0.035);
-  const steeringWheel = mesh(new THREE.TorusGeometry(0.18, 0.025, 6, 16), black, car);
-  steeringWheel.position.set(-0.36, 1.44, -0.12); steeringWheel.rotation.x = -0.5;
-  for (const side of [-1, 1]) {
-    const mirror = mesh(sphereGeometry, green, car); mirror.position.set(side * 0.98, 1.22, -0.42); mirror.scale.set(0.19, 0.1, 0.12);
-    const headlight = mesh(sphereGeometry, lamp, car); headlight.position.set(side * 0.55, 0.93, -1.84); headlight.scale.set(0.26, 0.07, 0.21); headlight.rotation.y = side * 0.21;
-    const tail = mesh(sphereGeometry, red, car); tail.position.set(side * 0.58, 0.86, 1.91); tail.scale.set(0.22, 0.095, 0.12);
-    box(car, silver, [0.14, 0.035, 0.065], [side * 0.875, 1.0, 0.49]);
-  }
-  const grille = mesh(sphereGeometry, black, car); grille.position.set(0, 0.66, -2.03); grille.scale.set(0.52, 0.14, 0.06);
-  box(car, lamp, [0.39, 0.12, 0.035], [0, 0.67, 2.04]);
-  cylinder(car, silver, 0.065, 0.2, [-0.56, 0.49, 2.03]).rotation.x = Math.PI / 2;
-  const badge = mesh(sphereGeometry, silver, car); badge.scale.set(0.052, 0.018, 0.035); badge.position.set(0, 0.973, -1.98);
-  const wheels = [];
-  for (const z of [-1.26, 1.27]) for (const side of [-1, 1]) {
-    const steering = new THREE.Group(); steering.position.set(side * 0.89, 0.43, z); car.add(steering);
-    const wheel = new THREE.Group(); steering.add(wheel);
-    const tire = mesh(new THREE.TorusGeometry(0.3, 0.115, 8, 20), rubber, wheel); tire.rotation.y = Math.PI / 2;
-    const rim = cylinder(wheel, silver, 0.255, 0.15, [side * 0.04, 0, 0]); rim.rotation.z = Math.PI / 2;
-    const inset = cylinder(wheel, black, 0.215, 0.16, [side * 0.045, 0, 0]); inset.rotation.z = Math.PI / 2;
-    for (let spoke = 0; spoke < 5; spoke++) {
-      const angle = spoke * Math.PI * 2 / 5;
-      const object = box(wheel, silver, [0.025, 0.055, 0.23], [side * 0.132, Math.sin(angle) * 0.105, Math.cos(angle) * 0.105]);
-      object.rotation.x = -angle;
-    }
-    const hub = cylinder(wheel, silver, 0.075, 0.19, [side * 0.05, 0, 0]); hub.rotation.z = Math.PI / 2;
-    wheels.push({ wheel, steering, front: z < 0 });
-  }
-  car.scale.setScalar(1.18);
 
   const cameraTarget = new THREE.Vector3();
   const desiredTarget = new THREE.Vector3();
@@ -455,7 +492,7 @@ export function createWorldScene(canvas) {
     if (dt > 0) {
       const turn = Math.atan2(Math.sin(state.heading - previousHeading), Math.cos(state.heading - previousHeading));
       for (const { wheel, steering, front: isFront } of wheels) {
-        wheel.rotation.x -= state.speed * dt / 0.43;
+        wheel.rotation.x -= state.speed * dt / 0.322;
         if (isFront) steering.rotation.y = THREE.MathUtils.lerp(steering.rotation.y, -THREE.MathUtils.clamp(turn / dt * 0.2, -0.35, 0.35), 0.2);
       }
     }

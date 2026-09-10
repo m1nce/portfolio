@@ -1,8 +1,10 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { base } from '$app/paths';
-  import { SPAWN, WORLD_SIZE, ROADS, LANDMARKS, stepWorldCar, joystickInput, nearestLandmark } from '$lib/world.js';
+  import { SPAWN, LANDMARKS, DISCOVERIES, terrainHeight, stepWorldCar, joystickInput, nearestLandmark } from '$lib/world.js';
   import { CAMERA_VIEWS } from '$lib/worldCamera.js';
+  import { GEARS, shiftGear, gearDrive } from '$lib/transmission.js';
+  import WorldMap from '$lib/components/WorldMap.svelte';
 
   let canvas;
   let panel;
@@ -15,20 +17,32 @@
   let topic = null;
   let destination = null;
   let visited = [];
+  let found = [];
+  let manualTransmission = false;
+  let selectedGear = 1;
+  let shiftHint = '';
   let stick = { x: 0, y: 0 };
   let stickPointer = null;
   let stickElement;
   let braking = false;
   let cameraIndex = 0;
   const keys = new Set();
-  const roadPaths = ROADS.map(points => points.map(p => `${p.x},${p.z}`).join(' '));
   $: nearby = nearestLandmark(car);
+  $: nearbyScenic = DISCOVERIES.find(place => Math.hypot(place.x - car.x, place.z - car.z) < 18);
+  $: rpm = gearDrive(selectedGear, car.speed, 0, true).rpm;
   $: distance = destination ? Math.round(Math.hypot(destination.x - car.x, destination.z - car.z)) : 0;
   $: stopped = paused || !!modal || !ready || !!error;
   $: cameraView = CAMERA_VIEWS[cameraIndex];
 
   function cycleCamera() {
     if (!stopped) cameraIndex = (cameraIndex + 1) % CAMERA_VIEWS.length;
+  }
+
+  function selectGear(requested) {
+    if (!manualTransmission || stopped) return;
+    const next = shiftGear(selectedGear, requested, car.speed);
+    shiftHint = next !== requested ? 'Brake to a stop before changing direction.' : '';
+    selectedGear = next;
   }
 
   function releaseControls() {
@@ -59,6 +73,8 @@
   }
   function resetCar() {
     car = { ...SPAWN };
+    selectedGear = 1;
+    shiftHint = '';
     paused = false;
     closePanel();
   }
@@ -66,6 +82,11 @@
     if (event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
     if (event.altKey || event.ctrlKey || event.metaKey || modal) return;
     const key = event.key.toLowerCase();
+    if (manualTransmission && /^[1-5r]$/.test(key)) {
+      event.preventDefault();
+      if (!event.repeat) selectGear(key === 'r' ? 'R' : Number(key));
+      return;
+    }
     if (key === 'c' && !event.repeat) { event.preventDefault(); cycleCamera(); return; }
     if (key === 'm' && !event.repeat) { event.preventDefault(); openPanel('map'); return; }
     if ((key === 'escape' || key === 'p') && !event.repeat) { event.preventDefault(); openPanel('pause'); return; }
@@ -102,6 +123,16 @@
     let frame;
     let disposed = false;
     let lastTime = 0;
+    const desktop = window.matchMedia('(min-width: 901px) and (pointer: fine)');
+    const updateTransmission = () => {
+      manualTransmission = desktop.matches;
+      selectedGear = 1;
+      shiftHint = '';
+      releaseControls();
+      car = { ...car, speed: 0 };
+    };
+    updateTransmission();
+    desktop.addEventListener('change', updateTransmission);
     const observer = new ResizeObserver(() => scene?.resize(canvas.clientWidth, canvas.clientHeight));
     observer.observe(canvas);
     function loseFocus() {
@@ -127,10 +158,16 @@
         lastTime = time;
         if (!stopped) {
           const input = stickPointer !== null ? joystickInput(stick.x, stick.y, scene.getCameraHeading()) : {
-            throttle: Number(keys.has('arrowup') || keys.has('w')) - Number(keys.has('arrowdown') || keys.has('s')),
+            throttle: Number(keys.has('arrowup') || keys.has('w')) - (manualTransmission ? 0 : Number(keys.has('arrowdown') || keys.has('s'))),
             steering: Number(keys.has('arrowright') || keys.has('d')) - Number(keys.has('arrowleft') || keys.has('a'))
           };
-          car = stepWorldCar(car, { ...input, brake: braking || keys.has(' ') }, dt);
+          car = stepWorldCar(car, {
+            ...input,
+            ...(manualTransmission ? { gear: selectedGear } : {}),
+            brake: braking || keys.has(' ') || (manualTransmission && (keys.has('arrowdown') || keys.has('s')))
+          }, dt);
+          const discovery = DISCOVERIES.find(place => !found.includes(place.id) && Math.hypot(place.x - car.x, place.z - car.z) < 18);
+          if (discovery) found = [...found, discovery.id];
         }
         if (!error) scene.render(car, stopped ? 0 : dt, cameraView.id);
         frame = requestAnimationFrame(animate);
@@ -141,6 +178,7 @@
       disposed = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
+      desktop.removeEventListener('change', updateTransmission);
       window.removeEventListener('keydown', keyDown);
       window.removeEventListener('keyup', keyUp);
       window.removeEventListener('blur', loseFocus);
@@ -157,8 +195,8 @@
   <meta name="theme-color" content="#233c2e" />
 </svelte:head>
 
-<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
-  <canvas bind:this={canvas} tabindex="0" aria-label="Open valley driving world. Arrow keys or WASD to drive, Space to brake, E to talk, M for map, C to change camera, P to pause."></canvas>
+<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-transmission={manualTransmission ? 'manual' : 'automatic'} data-gear={manualTransmission ? selectedGear : 'auto'} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
+  <canvas bind:this={canvas} tabindex="0" aria-label={manualTransmission ? 'Mountain driving world. W or Up to accelerate; A, D or Left, Right to steer. 1 through 5 select gears, R selects reverse when stopped. S, Down or Space to brake. E to talk, M for map, C for camera, P to pause.' : 'Mountain driving world. Point the joystick where you want to go. Automatic transmission. Tap a nearby character to talk, or use the map and camera buttons.'}></canvas>
   <header class="world-header">
     <a class="portfolio-link" href="{base}/"><span aria-hidden="true">↖</span> Portfolio</a>
     <div class="world-title"><span>MINCHAN'S WORLD</span><strong>The scenic route.</strong></div>
@@ -173,20 +211,15 @@
   <span class="sr-only" role="status">Camera: {cameraView.label}</span>
 
   <aside class="location-card" aria-label="Your location">
-    <span class="eyebrow">SOUTHERN CALIFORNIA · OPEN VALLEY</span>
-    <h1>{nearby?.place || 'Somewhere along the way.'}</h1>
-    <p>{destination ? `${destination.place} · ${distance} m away` : 'No itinerary. Take a turn that looks interesting.'}</p>
+    <span class="eyebrow">SOUTHERN CALIFORNIA · MOUNTAIN PASS</span>
+    <h1>{nearby?.place || nearbyScenic?.place || 'Somewhere along the way.'}</h1>
+    <p>{destination ? `${destination.place} · ${distance} m away` : nearbyScenic?.description || 'No itinerary. Take a turn that looks interesting.'}</p>
+    <span class="elevation">{Math.round(terrainHeight(car.x, car.z))} m elevation · {found.length}/{DISCOVERIES.length} viewpoints</span>
     {#if destination}<button class="clear-pin" on:click={() => destination = null}>Clear destination ×</button>{/if}
   </aside>
 
   <button class="mini-map" on:click={() => openPanel('map')} aria-label="Open valley map and choose a destination">
-    <svg viewBox="-180 -180 360 360" aria-hidden="true">
-      <rect x="-180" y="-180" width="360" height="360" rx="24" fill="#e8e6cc" />
-      <path d="M-180-80Q-85-155 15-125T180-60M-180-50Q-80-125 25-95T180-30M-180 100Q-55 10 30 80T180 125" fill="none" stroke="#c3c8a9" stroke-width="13" />
-      {#each roadPaths as points}<polyline {points} fill="none" stroke="#8a866d" stroke-width="6" stroke-linejoin="round" />{/each}
-      {#each LANDMARKS as place}<circle cx={place.x} cy={place.z} r="8" fill={place.id === destination?.id ? '#b45e39' : '#f9f8ed'} stroke="#335341" stroke-width="3" />{/each}
-      <g transform="translate({car.x} {car.z}) rotate({car.heading * 180 / Math.PI})"><path d="M0-12 8 8 0 4-8 8Z" fill="#214c35" stroke="#fffced" stroke-width="2" /></g>
-    </svg>
+    <WorldMap {car} destinationId={destination?.id} compact {found} />
     <span>N ↑ <span>{visited.length} / {LANDMARKS.length} met</span></span>
   </button>
 
@@ -203,9 +236,16 @@
 
   <div class="driving-bar">
     <div class="car-caption"><span class="car-dot"></span><div><strong>MX-5 · NB2</strong><span>British racing green. Factory stock.</span></div></div>
-    <div class="keyboard-help"><span><kbd>W A S D</kbd> / arrows to drive</span><span><kbd>↓</kbd> Brake / reverse · <kbd>Space</kbd> Stop</span></div>
+    <div class="keyboard-help"><span><kbd>W A S D</kbd> / arrows · <kbd>S / ↓</kbd> Brake</span><span><kbd>1 – 5</kbd> Gears · <kbd>R</kbd> Reverse · <kbd>Space</kbd> Stop</span></div>
+    {#if manualTransmission}
+      <div class="transmission">
+        <label for="gear">5-SPEED MANUAL</label>
+        <div><select id="gear" aria-label="Gear" value={selectedGear} disabled={stopped} on:change={event => { selectGear(event.currentTarget.value === 'R' ? 'R' : Number(event.currentTarget.value)); event.currentTarget.value = String(selectedGear); canvas.focus(); }}>{#each GEARS as gear}<option value={gear}>{gear}</option>{/each}</select><span>{rpm.toLocaleString()}<small>RPM</small></span></div>
+      </div>
+    {/if}
     <div class="speed"><strong>{Math.round(Math.abs(car.speed) * 3.6)}</strong><span>{car.speed < -.1 ? 'REVERSE' : 'KM/H'}</span></div>
   </div>
+  {#if shiftHint}<p class="shift-hint" role="status">{shiftHint}</p>{/if}
 
   {#if nearby && ready && !stopped}
     <button class="talk-prompt" on:click={() => openPanel('talk')}><span class="talk-icon" aria-hidden="true">···</span><span><small>Someone has a story</small><strong>Talk to {nearby.name}</strong></span><kbd>E</kbd></button>
@@ -238,20 +278,17 @@
     {:else if modal === 'map'}
       <h2 id="panel-title">A valley of possibilities.</h2>
       <p>Pick a place to keep in view. The route is yours.</p>
-      <svg class="large-map" viewBox="{-WORLD_SIZE / 2} {-WORLD_SIZE / 2} {WORLD_SIZE} {WORLD_SIZE}" role="img" aria-label="Connected loop roads with the garage, field station and lookout pavilion. Your position is the green arrow.">
-        <rect x="-180" y="-180" width="360" height="360" fill="#e8e6cc" />
-        <path d="M-180-80Q-85-155 15-125T180-60M-180-50Q-80-125 25-95T180-30M-180 100Q-55 10 30 80T180 125" fill="none" stroke="#c3c8a9" stroke-width="12" />
-        {#each roadPaths as points}<polyline {points} fill="none" stroke="#8c8b73" stroke-width="8" stroke-linejoin="round" /><polyline {points} fill="none" stroke="#eee9cd" stroke-width="2" stroke-dasharray="4 5" />{/each}
-        {#each LANDMARKS as place, i}<circle cx={place.x} cy={place.z} r="12" fill="#faf8e9" stroke="#335341" stroke-width="2" /><text x={place.x} y={place.z + 4} text-anchor="middle" fill="#233c2e" font-size="12" font-weight="700">{i + 1}</text>{/each}
-        <g transform="translate({car.x} {car.z}) rotate({car.heading * 180 / Math.PI})"><path d="M0-12 8 8 0 4-8 8Z" fill="#214c35" stroke="#fffced" stroke-width="2" /></g>
-        <text x="150" y="-150" fill="#335341" font-size="14">N ↑</text>
-      </svg>
-      <div class="map-places">{#each LANDMARKS as place, i}<button class="topic-option" on:click={() => { destination = place; closePanel(); }}><span class="place-number">{i + 1}</span><span><strong>{place.place}</strong><small>{place.name}{visited.includes(place.id) ? ' · Met' : ''}</small></span><span>↗</span></button>{/each}</div>
+      <div class="large-map"><WorldMap {car} destinationId={destination?.id} {found} /></div>
+      <p class="map-legend">10 m contours · ◇ Scenic turnouts · {found.length}/{DISCOVERIES.length} discovered</p>
+      <div class="map-places">
+        {#each LANDMARKS as place, i}<button class="topic-option" on:click={() => { destination = place; closePanel(); }}><span class="place-number">{i + 1}</span><span><strong>{place.place}</strong><small>{place.name}{visited.includes(place.id) ? ' · Met' : ''}</small></span><span>↗</span></button>{/each}
+        {#each DISCOVERIES as place}<button class="topic-option" on:click={() => { destination = place; closePanel(); }}><span class="place-number scenic">{found.includes(place.id) ? '◆' : '◇'}</span><span><strong>{place.place}</strong><small>{Math.round(terrainHeight(place.x, place.z))} m elevation{found.includes(place.id) ? ' · Discovered' : ''}</small></span><span>↗</span></button>{/each}
+      </div>
       <p class="cast-note">Opening the map keeps your car exactly where you left it.</p>
     {:else}
       <h2 id="panel-title">Enjoy the pause.</h2>
       <p>A small open world. No timer, no required route.</p>
-      <dl><dt>Drive</dt><dd>WASD / arrow keys</dd><dt>Brake / reverse</dt><dd>Down / S</dd><dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
+      <dl>{#if manualTransmission}<dt>Accelerate / steer</dt><dd>W / ↑ · A, D / ←, →</dd><dt>Manual gears</dt><dd>1, 2, 3, 4, 5 · R for reverse when stopped</dd><dt>Brake</dt><dd>S / ↓</dd>{:else}<dt>Drive</dt><dd>Point the joystick in your intended direction. Gears change automatically.</dd>{/if}<dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
       <button class="primary-link" on:click={() => { paused = false; closePanel(); }}>Resume driving →</button>
       <button class="topic-option" on:click={resetCar}>Return to the garage <span>↩</span></button>
       <a class="text-button" href="{base}/">Take the direct route to my portfolio ↗</a>
@@ -283,7 +320,7 @@
   .location-card p { margin: 0; font-size: 11px; line-height: 1.6; }
   .clear-pin { min-height: 36px; border: 0; background: none; padding: 4px 0 0; font-size: 11px; text-decoration: underline; }
   .mini-map { position: absolute; top: 108px; right: 28px; width: 156px; padding: 7px; border: 1px solid #78856b; background: #faf8e8ed; border-radius: 5px; }
-  .mini-map svg { display: block; width: 100%; border-radius: 2px; }
+  .elevation { display: block; font-size: 9px; margin-top: 8px; color: #52654d; }
   .mini-map > span { display: flex; justify-content: space-between; padding: 5px 3px 0; font-size: 9px; font-weight: 600; }
   .driving-bar { position: absolute; bottom: 25px; left: 30px; right: 30px; display: flex; gap: 32px; align-items: center; padding: 16px 19px; border: 1px solid #73816866; border-radius: 5px; background: #f8f5e8ed; pointer-events: none; }
   .car-caption { display: flex; gap: 13px; align-items: center; }
@@ -293,6 +330,15 @@
   .car-caption div > span { font-size: 10px; opacity: .8; }
   .keyboard-help { margin-left: auto; font-size: 10px; line-height: 1.9; }
   kbd { font: 10px 'DM Sans', sans-serif; padding: 2px 5px; border: 1px solid #73816866; border-radius: 2px; }
+  .transmission { pointer-events: auto; padding-left: 22px; border-left: 1px solid #73816866; }
+  .transmission label { display: block; font-size: 8px; letter-spacing: .1em; margin-bottom: 4px; }
+  .transmission > div { display: flex; align-items: center; gap: 12px; }
+  .transmission select { min-width: 54px; min-height: 44px; border: 1px solid #73816866; border-radius: 3px; background: #faf8ec; color: #243e2f; font: 500 23px var(--font-display); padding: 2px 6px; }
+  .transmission span { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 40px; }
+  .transmission small { display: block; font-size: 8px; letter-spacing: .1em; }
+  .shift-hint { position: absolute; left: 50%; bottom: 105px; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 8px 14px; background: #faf8ec; border: 1px solid #8b5732; border-radius: 3px; font-size: 12px; text-align: center; }
+  .map-legend { color: #5c6b60; font-size: 10px; margin: 7px 0 0; }
+  .scenic { border-radius: 3px; }
   .speed { min-width: 55px; padding-left: 24px; border-left: 1px solid #73816866; }
   .speed strong { display: block; font: 500 32px/1 var(--font-display); }
   .speed span { font-size: 8px; letter-spacing: .1em; }
@@ -327,7 +373,7 @@
   dt { font-weight: 600; } dd { margin: 0; }
   .map-dialog { width: min(570px, calc(100% - 32px)); }
   .map-dialog h2 { font-size: 38px; margin-bottom: 10px; }
-  .large-map { width: 100%; height: min(31vh, 280px); display: block; background: #e8e6cc; border: 1px solid #bac3a1; }
+  .large-map { width: 100%; height: min(52vh, 390px); display: block; background: #e8e6cc; border: 1px solid #bac3a1; }
   .place-number { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #a3ae9d; border-radius: 50%; }
   .map-places strong, .map-places small { display: block; }
   .map-places strong { font-size: 13px; font-weight: 500; }.map-places small { font-size: 11px; opacity: .8; }
@@ -358,7 +404,7 @@
     .location-card h1 { font-size: 23px; }.location-card .eyebrow { display: none; }.location-card p { line-height: 1.6; }
     .button-word { display: none; }.header-actions { gap: 6px; }
     .map-dialog h2 { font-size: 34px; }.map-dialog > p { font-size: 12px; }
-    .large-map { height: min(30vh, 245px); }dl { grid-template-columns: 105px 1fr; }
+    .large-map { height: min(38vh, 300px); }dl { grid-template-columns: 105px 1fr; }
   }
   @media (max-height: 520px) {
     .location-card { display: none; }.mini-map { width: 89px; }.mini-map > span { display: none; }.talk-prompt { bottom: 28px; }

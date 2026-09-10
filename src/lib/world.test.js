@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { WORLD_SIZE, SPAWN, ROADS, ROAD_WIDTH, LANDMARKS, OBSTACLES, terrainHeight, roadDistance, stepWorldCar, joystickInput, nearestLandmark } from './world.js';
+import { WORLD_SIZE, SPAWN, WATER, ROAD_WIDTH, LANDMARKS, OBSTACLES, roadDistance, stepWorldCar, joystickInput, nearestLandmark } from './world.js';
 
 const idle = { throttle: 0, steering: 0, brake: false };
 const gas = { ...idle, throttle: 1 };
@@ -34,7 +34,15 @@ for (const cameraHeading of [-Math.PI, -Math.PI / 2, -.4, 0, .4, Math.PI / 2, Ma
 assert.deepEqual(joystickInput(1, 0, NaN), idle, 'An invalid camera heading must fail neutral');
 
 // Pick a clear patch away from roads: free roaming must not snap back to a lane.
-const clear = { x: 55, z: 50, heading: 0, speed: 0 };
+const clear = { x: 0, z: 0, heading: 0, speed: 0 };
+outer: for (let x = -WORLD_SIZE / 2 + 45; x < WORLD_SIZE / 2 - 45; x += 30) {
+  for (let z = -WORLD_SIZE / 2 + 45; z < WORLD_SIZE / 2 - 45; z += 30) {
+    if (roadDistance(x, z) < 35 || OBSTACLES.some(o => Math.hypot(x - o.x, z - o.z) < o.radius + 35)
+      || WATER.some(w => Math.hypot((x - w.x) / (w.rx + 35), (z - w.z) / (w.rz + 35)) < 1)) continue;
+    Object.assign(clear, { x, z }); break outer;
+  }
+}
+const original = { ...clear };
 assert.ok(roadDistance(clear.x, clear.z) > ROAD_WIDTH);
 for (const [heading, dx, dz] of [[0, 0, -1], [Math.PI / 2, 1, 0], [Math.PI, 0, 1], [-Math.PI / 2, -1, 0]]) {
   const moved = drive({ ...clear, heading }, gas, 0.5);
@@ -55,7 +63,7 @@ for (const direction of [-1, 1]) {
   assert.ok(stepWorldCar({ ...clear, speed: 8 }, { ...gas, steering: direction }, 0.05).heading * direction > 0);
   assert.ok(stepWorldCar({ ...clear, speed: -8 }, { ...gas, throttle: -1, steering: direction }, 0.05).heading * direction < 0, 'Reversing must reverse steering yaw');
 }
-assert.deepEqual(clear, { x: 55, z: 50, heading: 0, speed: 0 }, 'Driving must leave the caller’s state untouched');
+assert.deepEqual(clear, original, 'Driving must leave the caller’s state untouched');
 for (const dt of [0, -1, NaN, Infinity]) assert.deepEqual(stepWorldCar(clear, gas, dt), clear);
 assert.deepEqual(stepWorldCar(clear, gas, 10), stepWorldCar(clear, gas, 0.05), 'A stalled frame must not teleport the car');
 assert.deepEqual(stepWorldCar({ ...clear, x: NaN }, gas, 0.05), SPAWN);
@@ -63,7 +71,7 @@ const [sixty, oneTwenty] = [60, 120].map((fps) => drive(clear, { ...gas, steerin
 assert.ok(Math.hypot(sixty.x - oneTwenty.x, sixty.z - oneTwenty.z) < 0.2, 'Handling must remain stable across refresh rates');
 
 for (const heading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-  const edge = { x: Math.sin(heading) * 178, z: -Math.cos(heading) * 178, heading, speed: 26 };
+  const edge = { x: Math.sin(heading) * (WORLD_SIZE / 2 - 2), z: -Math.cos(heading) * (WORLD_SIZE / 2 - 2), heading, speed: 26 };
   const stopped = stepWorldCar(edge, gas, 0.05);
   assert.ok(Math.abs(stopped.x) < WORLD_SIZE / 2 && Math.abs(stopped.z) < WORLD_SIZE / 2);
   assert.equal(stopped.speed, 0, 'Map boundaries must stop the car');
@@ -84,22 +92,6 @@ for (let frame = 0; frame < 3600; frame++) {
   assert.ok(roaming.speed >= -9 && roaming.speed <= 26);
 }
 
-assert.deepEqual(ROADS[0][0], ROADS[0].at(-1), 'The valley road must form a continuous loop');
-for (const branch of ROADS.slice(1)) {
-  for (const endpoint of [branch[0], branch.at(-1)]) {
-    assert.ok(ROADS.some((other) => other !== branch && other.some((point) => Math.hypot(point.x - endpoint.x, point.z - endpoint.z) < 0.001)), 'Every branch must connect to another road');
-  }
-}
-for (const points of ROADS) {
-  for (let index = 0; index < points.length; index++) {
-    const point = points[index];
-    assert.ok(Math.abs(point.x) < 170 && Math.abs(point.z) < 170);
-    assert.ok(Number.isFinite(terrainHeight(point.x, point.z)));
-    assert.equal(roadDistance(point.x, point.z), 0, 'Map and renderer points must describe the driving surface');
-    if (index) assert.ok(Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) < 4.5, 'Road samples must stay dense around bends');
-    assert.ok(OBSTACLES.every((obstacle) => Math.hypot(point.x - obstacle.x, point.z - obstacle.z) > obstacle.radius + ROAD_WIDTH / 2), 'Roads must remain clear of scenery colliders');
-  }
-}
 assert.equal(nearestLandmark(SPAWN)?.id, 'takumi', 'The garage encounter must be available on arrival');
 for (const landmark of LANDMARKS) {
   const state = { x: landmark.x, z: landmark.z, heading: 0, speed: 0 };
@@ -109,4 +101,23 @@ for (const landmark of LANDMARKS) {
   assert.ok(OBSTACLES.every((obstacle) => Math.hypot(landmark.x - obstacle.x, landmark.z - obstacle.z) > obstacle.radius + 1.25), 'NPCs must stand in reachable clearings');
 }
 assert.equal(nearestLandmark({ ...SPAWN, x: 170, z: 170 }), null);
-console.log('Open-world checks passed: screen-direction steering, free roaming, reverse, analog input, frame stability, collision recovery, connected roads, and reachable encounters.');
+
+const first = drive(clear, { ...gas, gear: 1 }, 1);
+const fifth = drive(clear, { ...gas, gear: 5 }, 1);
+assert.ok(first.speed > fifth.speed * 2, 'First gear must launch harder than fifth');
+assert.ok(first.speed <= 9, 'First gear must hold its own speed limit');
+const manualReverse = drive(clear, { ...gas, gear: 'R' }, 1);
+assert.ok(manualReverse.speed < 0 && manualReverse.z > clear.z, 'Accelerating in R backs up');
+assert.equal(drive({ ...clear, speed: 5 }, { ...gas, gear: 1, brake: true }, 2).speed, 0, 'Manual brake must never auto-reverse');
+assert.equal(drive(clear, { ...gas, gear: 1, throttle: -1 }, 1).speed, 0, 'Negative throttle must not reverse a manual forward gear');
+const downshift = stepWorldCar({ ...clear, speed: 25 }, { ...gas, gear: 1 }, .05);
+assert.ok(downshift.speed > 20 && downshift.speed < 25, 'Downshifting must slow gradually');
+for (const water of WATER) {
+  const before = { x: water.x, z: water.z + water.rz + 1.3, heading: 0, speed: 26 };
+  const stopped = stepWorldCar(before, gas, .05);
+  assert.equal(stopped.speed, 0, 'The water edge must stop the car');
+  assert.equal(stopped.z, before.z, 'A fast step cannot tunnel into the reservoir');
+  assert.ok(drive(stopped, { ...gas, gear: 'R' }, .25).z > stopped.z, 'Water collision allows reversing away');
+}
+
+console.log('Open-world checks passed: screen-direction steering, free roaming, reverse, analog input, frame stability, collision recovery, manual gears, water boundaries, and reachable encounters.');

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { CAMERA_VIEWS, cameraPose, cameraTerrainHeight } from './worldCamera.js';
-import { SPAWN, LANDMARKS, terrainHeight } from './world.js';
+import { WORLD_SIZE, SPAWN, LANDMARKS, terrainHeight } from './world.js';
 
 const yaw = (pose) => Math.atan2(pose.target.x - pose.position.x, -(pose.target.z - pose.position.z));
 const angleDifference = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -33,7 +33,7 @@ for (const aspect of [0.4, 390 / 844, 1, 16 / 9, 2.3]) {
     }
   }
 }
-for (const x of [-178, 0, 178]) for (const z of [-178, 0, 178]) for (const heading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) for (const view of CAMERA_VIEWS) {
+for (const x of [-WORLD_SIZE / 2 + 2, 0, WORLD_SIZE / 2 - 2]) for (const z of [-WORLD_SIZE / 2 + 2, 0, WORLD_SIZE / 2 - 2]) for (const heading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) for (const view of CAMERA_VIEWS) {
   const pose = cameraPose({ x, z, heading, speed: 0 }, 390 / 844, view.id);
   assert.ok(pose.position.y >= cameraTerrainHeight(pose.position.x, pose.position.z) + 5, 'Camera clears valley terrain and perimeter ridges');
 }
