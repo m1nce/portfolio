@@ -3,7 +3,7 @@
   import { base } from '$app/paths';
   import { SPAWN, LANDMARKS, DISCOVERIES, terrainHeight, terrainGrade, stepWorldCar, joystickInput, nearestLandmark } from '$lib/world.js';
   import { CAMERA_VIEWS } from '$lib/worldCamera.js';
-  import { automaticGear, createTransmission, selectTransmissionGear, stepTransmission } from '$lib/transmission.js';
+  import { automaticGear, createTransmission, selectTransmissionGear, stepTransmission, restartTransmission } from '$lib/transmission.js';
   import { createEngineAudio } from '$lib/engineAudio.js';
   import WorldMap from '$lib/components/WorldMap.svelte';
   import DrivingInstruments from '$lib/components/DrivingInstruments.svelte';
@@ -44,6 +44,12 @@
   function selectGear(requested) {
     if (!manualTransmission || stopped) return;
     transmission = selectTransmissionGear(transmission, requested, car.speed);
+  }
+  function restartEngine() {
+    if (!manualTransmission || stopped) return;
+    transmission = restartTransmission(transmission, car.speed);
+    if (soundEnabled) engineAudio?.start();
+    canvas?.focus({ preventScroll: true });
   }
   function toggleSound() {
     soundEnabled = !soundEnabled;
@@ -97,6 +103,7 @@
       if (soundEnabled) engineAudio?.start();
       return;
     }
+    if (manualTransmission && key === 'i' && !event.repeat) { event.preventDefault(); restartEngine(); return; }
     if (key === 'c' && !event.repeat) { event.preventDefault(); cycleCamera(); return; }
     if (key === 'm' && !event.repeat) { event.preventDefault(); openPanel('map'); return; }
     if ((key === 'escape' || key === 'p') && !event.repeat) { event.preventDefault(); openPanel('pause'); return; }
@@ -136,7 +143,7 @@
     let frame;
     let disposed = false;
     let lastTime = 0;
-    engineAudio = createEngineAudio();
+    engineAudio = createEngineAudio(base);
     const desktop = window.matchMedia('(min-width: 901px) and (pointer: fine)');
     const updateTransmission = () => {
       manualTransmission = desktop.matches;
@@ -185,13 +192,13 @@
           }, dt);
           if (!manualTransmission) {
             const gear = car.throttle < 0 ? 'R' : automaticGear(Math.abs(car.speed), terrainGrade(car.x, car.z, car.heading));
-            transmission = stepTransmission({ ...transmission, gear }, { throttle: Math.abs(car.throttle || 0) }, car.speed, dt);
+            transmission = stepTransmission({ ...transmission, gear }, { throttle: Math.abs(car.throttle || 0), automatic: true }, car.speed, dt);
           }
           const discovery = DISCOVERIES.find(place => !found.includes(place.id) && Math.hypot(place.x - car.x, place.z - car.z) < 18);
           if (discovery) found = [...found, discovery.id];
         }
         engineAudio.setMuted(!soundEnabled);
-        engineAudio.update({ rpm: transmission.rpm, throttle: Math.abs(car.throttle || 0), enabled: soundEnabled && manualTransmission, paused: stopped });
+        engineAudio.update({ rpm: transmission.rpm, throttle: Math.abs(car.throttle || 0), engine: transmission.engine, enabled: soundEnabled, paused: stopped });
         if (!error) scene.render(car, stopped ? 0 : dt, cameraView.id);
         frame = requestAnimationFrame(animate);
       }
@@ -219,8 +226,8 @@
   <meta name="theme-color" content="#233c2e" />
 </svelte:head>
 
-<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-transmission={manualTransmission ? 'manual' : 'automatic'} data-gear={manualTransmission ? transmission.gear : 'auto'} data-rpm={Math.round(transmission.rpm)} data-event={manualTransmission ? transmission.event : ''} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
-  <canvas bind:this={canvas} tabindex="0" aria-label={manualTransmission ? 'Mountain driving world. W or Up to accelerate; A, D or Left, Right to steer. Press 1 through 5 to shift gears, R for reverse when stopped, or N for neutral. S, Down or Space to brake. E to talk, M for map, C for camera, P to pause.' : 'Mountain driving world. Point the joystick where you want to go. Automatic transmission. Tap a nearby character to talk, or use the map and camera buttons.'}></canvas>
+<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-transmission={manualTransmission ? 'manual' : 'automatic'} data-gear={manualTransmission ? transmission.gear : 'auto'} data-engine={transmission.engine} data-rpm={Math.round(transmission.rpm)} data-event={manualTransmission ? transmission.event : ''} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
+  <canvas bind:this={canvas} tabindex="0" aria-label={manualTransmission ? 'Mountain driving world. W or Up to accelerate; A, D or Left, Right to steer. Press 1 through 5 to shift gears, R for reverse when stopped, or N for neutral. S, Down or Space to brake. Stopping in gear stalls the engine; press I to restart. E to talk, M for map, C for camera, P to pause.' : 'Mountain driving world. Point the joystick where you want to go. Automatic transmission. Tap a nearby character to talk, or use the map and camera buttons.'}></canvas>
   <header class="world-header">
     <a class="portfolio-link" href="{base}/"><span aria-hidden="true">↖</span> Portfolio</a>
     <div class="world-title"><span>MINCHAN'S WORLD</span><strong>The scenic route.</strong></div>
@@ -262,12 +269,12 @@
     <aside class="driving-notes" aria-label="Manual driving controls">
       <strong>MX-5 · NB2 <span>5-speed manual</span></strong>
       <p><kbd>W / ↑</kbd> Gas · <kbd>A D / ← →</kbd> Steer · <kbd>S / ↓</kbd> Brake</p>
-      <p><kbd>1–5</kbd> Gears · <kbd>R</kbd> Reverse</p>
-      <small>Pick a gear and drive. Use the keys or click the shifter.</small>
+      <p><kbd>1–5</kbd> Gears · <kbd>R</kbd> Reverse · <kbd>I</kbd> Ignition</p>
+      <small>Select N before stopping to keep the engine idling.</small>
       <button class="sound-toggle" on:click={toggleSound} aria-pressed={soundEnabled}>Engine sound: {soundEnabled ? 'On' : 'Off'}</button>
     </aside>
     <div class="instrument-dock">
-      <DrivingInstruments rpm={transmission.rpm} gear={transmission.gear} speed={car.speed} event={transmission.event} eventTime={transmission.eventTime} disabled={stopped} onGear={gear => { selectGear(gear); canvas.focus({ preventScroll: true }); }} />
+      <DrivingInstruments rpm={transmission.rpm} gear={transmission.gear} speed={car.speed} engine={transmission.engine} event={transmission.event} eventTime={transmission.eventTime} disabled={stopped} onGear={gear => { selectGear(gear); canvas.focus({ preventScroll: true }); }} onRestart={restartEngine} />
     </div>
   {:else}
     <div class="automatic-gauge"><DrivingInstruments compact rpm={transmission.rpm} speed={car.speed} /></div>
@@ -314,7 +321,8 @@
     {:else}
       <h2 id="panel-title">Enjoy the pause.</h2>
       <p>A small open world. No timer, no required route.</p>
-      <dl>{#if manualTransmission}<dt>Accelerate / steer</dt><dd>W / ↑ · A, D / ←, →</dd><dt>Gears</dt><dd>1–5 or click the shifter. R selects reverse when stopped; N selects neutral.</dd><dt>Pull away</dt><dd>First gear is ready when you arrive. Press W or Up to drive.</dd><dt>Shift assist</dt><dd>Shifts and stops are handled smoothly. Slow down if a lower gear is unavailable.</dd><dt>Brake</dt><dd>S / ↓</dd>{:else}<dt>Drive</dt><dd>Point the joystick in your intended direction. Gears change automatically.</dd>{/if}<dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
+      <dl>{#if manualTransmission}<dt>Accelerate / steer</dt><dd>W / ↑ · A, D / ←, →</dd><dt>Gears</dt><dd>1–5 or click the shifter. R selects reverse when stopped; N selects neutral.</dd><dt>Pull away</dt><dd>First gear is ready when you arrive. Press W or Up to drive.</dd><dt>Stopping</dt><dd>Select N before coming to a stop. Stopping in gear stalls the engine.</dd><dt>Ignition</dt><dd>Stop, then press I or click Start engine. Clutch operation is automatic.</dd><dt>Brake</dt><dd>S / ↓</dd>{:else}<dt>Drive</dt><dd>Point the joystick in your intended direction. Gears change automatically.</dd>{/if}<dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
+      <div class="audio-settings"><button class="sound-toggle" on:click={toggleSound} aria-pressed={soundEnabled}>Engine sound: {soundEnabled ? 'On' : 'Off'}</button><a href="{base}/audio/CREDITS.md" target="_blank" rel="noopener noreferrer">Recording credits ↗</a></div>
       <button class="primary-link" on:click={() => { paused = false; closePanel(); }}>Resume driving →</button>
       <button class="topic-option" on:click={resetCar}>Return to the garage <span>↩</span></button>
       <a class="text-button" href="{base}/">Take the direct route to my portfolio ↗</a>
@@ -355,6 +363,7 @@
   .driving-notes small { display: block; max-width: 290px; font-size: 10px; line-height: 1.6; }
   kbd { font: 10px 'DM Sans', sans-serif; padding: 2px 4px; border: 1px solid #73816866; border-radius: 2px; }
   .sound-toggle { display: block; min-height: 34px; margin: 7px 0 -5px; padding: 3px 0; background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; font-size: 10px; }
+  .audio-settings { display: flex; align-items: center; gap: 18px; margin: 12px 0; }.audio-settings .sound-toggle { margin: 0; font-size: 11px; }.audio-settings a { font-size: 11px; }
   .instrument-dock { position: absolute; right: 28px; bottom: 25px; }
   .automatic-gauge { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); right: 18px; pointer-events: none; }
   .map-legend { color: #5c6b60; font-size: 10px; margin: 7px 0 0; }

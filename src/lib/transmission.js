@@ -48,13 +48,14 @@ export function getDriveForces(speed, gear, throttle, grade = 0, onRoad = true, 
 }
 
 export function createTransmission() {
-  return { gear: 1, rpm: 850, coupling: 1, event: '', eventTime: 0 };
+  return { gear: 1, rpm: 850, coupling: 1, engine: 'running', stallArmed: false, stoppedTime: 0, startTime: 0, event: '', eventTime: 0 };
 }
 
 function validState(state) {
   return state && [...GEARS, 'N'].includes(state.gear)
-    && ['rpm', 'coupling', 'eventTime'].every(key => Number.isFinite(state[key]))
-    && state.rpm >= 850 && state.rpm <= 7000 && state.coupling >= 0 && state.coupling <= 1 && state.eventTime >= 0;
+    && ['running', 'stalled', 'starting'].includes(state.engine) && typeof state.stallArmed === 'boolean'
+    && ['rpm', 'coupling', 'eventTime', 'stoppedTime', 'startTime'].every(key => Number.isFinite(state[key]) && state[key] >= 0)
+    && state.rpm <= 7000 && state.coupling <= 1;
 }
 
 export function selectTransmissionGear(state, requested, speed) {
@@ -68,20 +69,48 @@ export function selectTransmissionGear(state, requested, speed) {
   return { ...state, gear: requested, coupling: 0, event: '', eventTime: 0 };
 }
 
+export function restartTransmission(state, speed) {
+  if (!validState(state)) state = createTransmission();
+  if (state.engine !== 'stalled' || !Number.isFinite(speed) || Math.abs(speed) >= .5) return { ...state };
+  return { ...state, engine: 'starting', rpm: 0, coupling: 0, stallArmed: false, stoppedTime: 0, startTime: 1.1, event: '', eventTime: 0 };
+}
+
 export function stepTransmission(state, input = {}, speed, dt) {
   if (!validState(state)) state = createTransmission();
   if (!Number.isFinite(dt) || dt <= 0) return { ...state };
   dt = Math.min(dt, .05);
   speed = Number.isFinite(speed) ? speed : 0;
   const throttle = Number.isFinite(input?.throttle) ? clamp(input.throttle, 0, 1) : 0;
-  let { rpm, coupling, event, eventTime } = state;
+  let { rpm, coupling, engine, stallArmed, stoppedTime, startTime, event, eventTime } = state;
   eventTime = Math.max(0, eventTime - dt);
   if (eventTime === 0) event = '';
+  if (input?.automatic === true) {
+    engine = 'running';
+    stallArmed = false;
+    stoppedTime = startTime = 0;
+  } else if (engine === 'running') {
+    // Only stopping after movement stalls: arrival, a neutral stop and a fresh restart remain ready to launch.
+    if (Math.abs(speed) > .5) stallArmed = true;
+    if (state.gear === 'N' && Math.abs(speed) < .08) stallArmed = false;
+    stoppedTime = stallArmed && state.gear !== 'N' && Math.abs(speed) < .08 ? stoppedTime + dt : 0;
+    if (stoppedTime >= .2) {
+      engine = 'stalled';
+      event = '';
+      eventTime = 0;
+    }
+  } else if (engine === 'starting') {
+    startTime = Math.max(0, startTime - dt);
+    if (startTime < 1e-9) engine = 'running';
+  }
+  if (engine !== 'running') {
+    rpm = approach(rpm, engine === 'starting' ? 300 : 0, 2500 * dt);
+    return { ...state, engine, stallArmed, stoppedTime, startTime, coupling: 0, rpm, event, eventTime };
+  }
   coupling = state.gear === 'N' ? 0 : Math.min(1, coupling + dt / .18);
   // Automatic launch slip avoids a clutch control; wheel torque still determines whether the car can climb.
   const launchRPM = 850 + throttle * 1200 * (1 - clamp(Math.abs(speed) / 4, 0, 1));
   const targetRPM = state.gear === 'N' ? 850 + throttle * 6150
     : Math.max(launchRPM, gearDrive(state.gear, speed, throttle).rpm);
   rpm = approach(rpm, targetRPM, (rpm < targetRPM ? 2200 : 1500) * dt);
-  return { ...state, coupling, rpm, event, eventTime };
+  return { ...state, engine, stallArmed, stoppedTime, startTime, coupling, rpm, event, eventTime };
 }

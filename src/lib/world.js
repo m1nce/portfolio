@@ -52,7 +52,7 @@ export function stepWorldCar(state, input = {}, dt) {
   const drivePower = input.drivePower === undefined ? 1 : Number.isFinite(input.drivePower) ? clamp(input.drivePower, 0, 1) : 0;
   const reversing = input.gear === undefined && requestedThrottle * speed < 0 && Math.abs(speed) > .15;
   // Automatic hill hold keeps an unattended car parked; pressing gas releases it, even when a high gear cannot climb.
-  const hillHold = gear !== 'N' && requestedThrottle === 0 && Math.abs(throttle) < .02 && Math.abs(speed) < .08;
+  const hillHold = drivePower > 0 && gear !== 'N' && requestedThrottle === 0 && Math.abs(throttle) < .02 && Math.abs(speed) < .08;
   const braking = input.brake || hillHold || reversing;
   const forces = getDriveForces(speed, gear, braking ? 0 : Math.abs(throttle), grade, onRoad, drivePower);
   const freeSpeed = speed + (forces.drive + forces.gravity + forces.drag) / CAR_MASS * dt;

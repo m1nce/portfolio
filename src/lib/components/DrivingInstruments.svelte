@@ -2,11 +2,13 @@
   export let rpm = 850;
   export let gear = 1;
   export let speed = 0;
+  export let engine = 'running';
   export let event = '';
   export let eventTime = 0;
   export let disabled = false;
   export let compact = false;
   export let onGear = () => {};
+  export let onRestart = () => {};
 
   const gates = [
     { gear: 1, x: 24, y: 30 }, { gear: 2, x: 24, y: 108 },
@@ -36,7 +38,9 @@
   $: shownRPM = Math.max(0, Math.round(Number.isFinite(rpm) ? rpm : 0));
   $: needleAngle = -135 + Math.min(shownRPM, 9000) / 9000 * 270;
   $: blocked = eventTime > 0 && !!event;
-  $: status = blocked ? event === 'direction-blocked' ? 'Stop before changing direction.' : 'Slow down before choosing that gear.'
+  $: status = engine === 'stalled' ? Math.abs(speed) >= .5 ? 'Engine stalled. Brake to stop, then restart.' : 'Engine stalled. Press I to restart.'
+    : engine === 'starting' ? 'Starter turning…'
+    : blocked ? event === 'direction-blocked' ? 'Stop before changing direction.' : 'Slow down before choosing that gear.'
     : gear === 'N' ? 'Neutral' : 'Press a gear to shift.';
 </script>
 
@@ -92,8 +96,10 @@
 
     <div class="drive-state">
       <div class="speed"><strong>{Math.round(Math.abs(speed) * 3.6)}</strong><span>km/h</span><b aria-label={`Current gear ${gear}`}>{gear}</b></div>
-      <p class="assist-label">Assisted shifting</p>
-      <p class="engine-state" class:warning={blocked} role="status">{status}</p>
+      <button class="ignition" class:stalled={engine === 'stalled'} disabled={disabled || engine !== 'stalled' || Math.abs(speed) >= .5} aria-label="Restart engine" aria-keyshortcuts="I" on:click={onRestart}>
+        <span>{engine === 'starting' ? 'Starting…' : engine === 'stalled' ? 'Start engine' : 'Engine running'}</span><kbd>I</kbd>
+      </button>
+      <p class="engine-state" class:warning={blocked || engine === 'stalled'} role="status">{status}</p>
       <span class="shift-guide"><kbd>1–5</kbd> gears · <kbd>R</kbd> reverse</span>
     </div>
   {/if}
@@ -121,7 +127,8 @@
   @keyframes shift-gate { 0% { transform: translate(var(--from-x), var(--from-y)); } 32% { transform: translate(var(--from-x), 69px); } 66% { transform: translate(var(--to-x), 69px); } 100% { transform: translate(var(--to-x), var(--to-y)); } }
   .drive-state { width: 148px; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
   .speed { display: flex; align-items: baseline; gap: 4px; padding: 0 0 8px; }.speed strong { font: 500 30px/1 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }.speed span { color: #bec5b7; font-size: 9px; }.speed b { display: grid; place-items: center; margin-left: auto; width: 30px; height: 30px; border: 1px solid #666e5d; border-radius: 4px; font-size: 20px; font-weight: 500; }
-  .assist-label { margin: 13px 0 0; color: #d4ddc7; font-size: 11px; }
+  .ignition { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 38px; margin-top: 4px; padding: 7px 9px; border: 1px solid #64735c; border-radius: 4px; background: #35432e; color: #eef0db; font: 11px 'DM Sans', sans-serif; cursor: pointer; }
+  .ignition.stalled { background: #4f3927; border-color: #c29665; color: #ffe0b5; }.ignition:disabled { cursor: default; }.ignition.stalled:disabled { opacity: .65; }
   kbd { font: 9px 'DM Sans', sans-serif; white-space: nowrap; border: 1px solid #83916b80; border-radius: 2px; padding: 1px 3px; }
   .engine-state { margin: 8px 0 5px; min-height: 26px; font-size: 10px; line-height: 1.35; color: #bdc9ad; }.engine-state.warning { color: #ffc393; }
   .shift-guide { margin-top: auto; color: #afb9a7; font-size: 8px; line-height: 1.8; white-space: nowrap; }.shift-guide kbd { font-size: 8px; padding: 0 2px; }

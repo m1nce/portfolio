@@ -167,14 +167,31 @@ assert.ok(highGear.car.speed > 1 && highGear.car.speed < launched.car.speed, 'A 
 assert.equal(highGear.transmission.event, '');
 const stoppedInGear = driveManual(launched.car, launched.transmission, { brake: true }, 3);
 assert.equal(stoppedInGear.car.speed, 0);
-assert.equal(stoppedInGear.transmission.rpm, 850, 'Braking must preserve idle');
-assert.ok(driveManual(stoppedInGear.car, stoppedInGear.transmission, { throttle: 1 }, 1).car.speed > 2, 'Throttle must drive away again without any recovery control');
+assert.equal(stoppedInGear.transmission.engine, 'stalled', 'Braking a moving car to rest in gear must stall the engine');
+assert.equal(stoppedInGear.transmission.rpm, 0, 'Stalling must let the tachometer settle to zero');
+assert.equal(driveManual(stoppedInGear.car, stoppedInGear.transmission, { throttle: 1 }, 1).car.speed, 0, 'Throttle cannot propel a stalled engine');
+const ignition = mechanics.restartTransmission(stoppedInGear.transmission, stoppedInGear.car.speed);
+const cranking = driveManual(stoppedInGear.car, ignition, { throttle: 1 }, .5);
+assert.equal(cranking.transmission.engine, 'starting');
+assert.equal(cranking.car.speed, 0, 'Cranking cannot apply drive torque');
+const restarted = driveManual(cranking.car, cranking.transmission, { throttle: 1 }, 1.5);
+assert.equal(restarted.transmission.engine, 'running');
+assert.ok(restarted.car.speed > 2, 'Ignition and throttle must allow a fresh launch without a clutch control');
+const neutralStop = driveManual(launched.car, mechanics.selectTransmissionGear(launched.transmission, 'N', launched.car.speed), { brake: true }, 3);
+assert.equal(neutralStop.car.speed, 0);
+assert.equal(neutralStop.transmission.engine, 'running', 'Stopping in neutral must avoid a stall');
+assert.equal(neutralStop.transmission.rpm, 850);
+const stalledOnHill = driveManual({ ...steepClimb, speed: 0 }, stoppedInGear.transmission, {}, .5);
+assert.ok(stalledOnHill.car.speed < 0, 'A stalled engine must leave gravity free to roll the car down a hill');
+assert.equal(stalledOnHill.transmission.engine, 'stalled', 'Hill rollback cannot bump-start the engine');
+assert.equal(driveManual({ ...steepClimb, speed: 0 }, stoppedInGear.transmission, { brake: true }, .5).car.speed, 0, 'The brake must still hold after a stall');
 const shifted = mechanics.selectTransmissionGear(launched.transmission, 2, launched.car.speed);
 const secondGear = driveManual(launched.car, shifted, { throttle: 1 }, .3);
 assert.equal(secondGear.transmission.gear, 2);
 assert.ok(secondGear.car.speed > launched.car.speed, 'A single gear selection must continue driving');
 const reverseLaunch = driveManual(clear, mechanics.selectTransmissionGear(mechanics.createTransmission(), 'R', 0), { throttle: 1 }, 1.2);
 assert.ok(reverseLaunch.car.speed < -2 && reverseLaunch.car.z > clear.z, 'R and throttle must back up without another control');
+assert.equal(driveManual(reverseLaunch.car, reverseLaunch.transmission, { brake: true }, 2).transmission.engine, 'stalled', 'Stopping in reverse must also stall');
 const cruise = { ...launched.transmission, gear: 5, rpm: 5000, coupling: 1 };
 for (const request of [1, 'R']) {
   const protectedGear = mechanics.selectTransmissionGear(cruise, request, 25);
@@ -185,4 +202,4 @@ for (const request of [1, 'R']) {
 }
 const manualFrames = [30, 60, 120].map(fps => driveManual(clear, mechanics.selectTransmissionGear(mechanics.createTransmission(), 2, 0), { throttle: 1 }, 1.2, fps));
 assert.ok(Math.max(...manualFrames.map(s => s.car.speed)) - Math.min(...manualFrames.map(s => s.car.speed)) < .2, 'Automatic engagement must remain stable across refresh rates');
-console.log('Assisted manual integration passed: throttle-only launch, single-input shifts, stop/start, high-gear launch, protected downshifts/reverse, and frame stability.');
+console.log('Assisted manual integration passed: throttle-only launch, single-input shifts, in-gear stalls, ignition, neutral stops, unpowered hill rollback, protected shifts, and frame stability.');

@@ -1,21 +1,50 @@
 const clamp = (value, low, high) => Math.max(low, Math.min(high, Number.isFinite(value) ? value : low));
+const recordings = ['mx5-idle.wav', 'mx5-low.wav', 'mx5-high.wav', 'mx5-start.wav', 'mx5-stop.wav'];
+// Approximate firing-rate references for the adapted recording bands.
+const referenceRpm = [1250, 2100, 5100];
 
-export function createEngineAudio() {
-  let context, master, tone, rumble, filter, engineGain;
-  let nodes = [], sources = [];
-  let muted = true, destroyed = false;
+export function createEngineAudio(base = '') {
+  let context, master, filter, buffers, loading;
+  let loops = [], muted = true, destroyed = false, previousEngine = 'running';
+  const nodes = new Set(), sources = new Set(), shots = new Set();
+  const request = new AbortController();
+  const remember = node => { nodes.add(node); return node; };
+
+  function stopShots() {
+    for (const source of shots) { try { source.stop(); } catch {} }
+    shots.clear();
+  }
 
   function silence() {
-    if (!context || !master) return;
-    master.gain.cancelScheduledValues(context.currentTime);
-    master.gain.setValueAtTime(0, context.currentTime);
+    if (context && master) {
+      master.gain.cancelScheduledValues(context.currentTime);
+      master.gain.setValueAtTime(0, context.currentTime);
+    }
+    stopShots();
   }
 
   function release() {
+    request.abort();
     for (const source of sources) { try { source.stop(); } catch {} }
     for (const node of nodes) node.disconnect();
     if (context && context.state !== 'closed') context.close().catch(() => {});
-    nodes = []; sources = []; context = undefined;
+    nodes.clear(); sources.clear(); shots.clear(); loops = [];
+    context = master = filter = buffers = undefined;
+  }
+
+  function oneShot(buffer) {
+    stopShots();
+    const source = remember(context.createBufferSource());
+    const gain = remember(context.createGain());
+    source.buffer = buffer;
+    gain.gain.value = 0.55;
+    source.connect(gain).connect(master);
+    source.onended = () => {
+      source.disconnect(); gain.disconnect();
+      nodes.delete(source); nodes.delete(gain); sources.delete(source); shots.delete(source);
+    };
+    sources.add(source); shots.add(source);
+    source.start();
   }
 
   return {
@@ -24,50 +53,74 @@ export function createEngineAudio() {
       const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
       if (!AudioContext) return;
       try {
-        if (!context) {
+        if (!loading) {
           context = new AudioContext();
-          master = context.createGain();
-          master.gain.value = 0;
-          master.connect(context.destination);
-          engineGain = context.createGain();
-          engineGain.gain.value = 0;
-          engineGain.connect(master);
-          filter = context.createBiquadFilter();
-          filter.type = 'lowpass';
-          filter.Q.value = 0.7;
-          filter.connect(engineGain);
-          tone = context.createOscillator();
-          tone.type = 'sawtooth';
-          tone.connect(filter);
-          rumble = context.createOscillator();
-          rumble.type = 'sine';
-          const rumbleGain = context.createGain();
-          rumbleGain.gain.value = 0.35;
-          rumble.connect(rumbleGain).connect(filter);
-          nodes = [master, engineGain, filter, tone, rumble, rumbleGain];
-          sources = [tone, rumble];
-          for (const source of sources) source.start();
+          const audioContext = context;
+          // Unlock during the gesture; downloads never create or resume a context.
+          const resumed = audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve();
+          loading = (async () => {
+            await resumed;
+            const samples = await Promise.all(recordings.map(async name => {
+              const response = await fetch(`${base}/audio/${name}`, { signal: request.signal });
+              if (!response.ok) throw new Error('Engine recording unavailable');
+              const data = await response.arrayBuffer();
+              if (destroyed) return;
+              return audioContext.decodeAudioData(data);
+            }));
+            if (destroyed) return;
+            buffers = samples;
+            master = remember(audioContext.createGain());
+            master.gain.value = 0;
+            master.connect(audioContext.destination);
+            filter = remember(audioContext.createBiquadFilter());
+            filter.type = 'lowpass';
+            filter.Q.value = 0.5;
+            filter.connect(master);
+            loops = samples.slice(0, 3).map(buffer => {
+              const source = remember(audioContext.createBufferSource());
+              const gain = remember(audioContext.createGain());
+              source.buffer = buffer;
+              source.loop = true;
+              gain.gain.value = 0;
+              source.connect(gain).connect(filter);
+              sources.add(source);
+              source.start();
+              return { source, gain };
+            });
+          })().catch(() => { release(); });
         }
-        if (context.state === 'suspended') await context.resume();
+        await loading;
+        if (!destroyed && context?.state === 'suspended') await context.resume();
       } catch {
-        // Audio permission/device failures must never interrupt driving.
+        // Missing files, permissions or audio devices must never interrupt driving.
         release();
       }
     },
 
-    update({ rpm = 850, throttle = 0, enabled = false, paused = false } = {}) {
-      if (destroyed || muted || !enabled || paused || !context || context.state !== 'running') {
+    update({ rpm = 850, throttle = 0, engine = 'running', enabled = false, paused = false } = {}) {
+      if (destroyed || muted || !enabled || paused) {
+        previousEngine = engine;
         silence();
         return;
       }
-      const target = (param, value, time = 0.035) => param.setTargetAtTime(value, context.currentTime, time);
-      const frequency = clamp(rpm, 0, 7000) / 30; // Two firings per revolution.
-      const volume = 0.085 + clamp(throttle, 0, 1) * 0.065;
-      target(tone.frequency, Math.max(10, frequency));
-      target(rumble.frequency, Math.max(5, frequency / 2));
-      target(filter.frequency, 230 + frequency * 4 + clamp(throttle, 0, 1) * 500);
-      target(engineGain.gain, volume, 0.025);
-      target(master.gain, 0.35);
+      if (!master || context?.state !== 'running') return;
+      const changed = engine !== previousEngine;
+      previousEngine = engine;
+      const target = (param, value, time = 0.08) => param.setTargetAtTime(value, context.currentTime, time);
+      const revs = clamp(rpm, 0, 7600), load = clamp(throttle, 0, 1);
+      // ponytail: three adapted recording bands; use a measured NB2 dyno set for exact stock timbre.
+      const lowBlend = clamp((revs - 1000) / 1400, 0, 1);
+      const highBlend = clamp((revs - 2500) / 2500, 0, 1);
+      const weights = [Math.cos(lowBlend * Math.PI / 2), Math.sin(lowBlend * Math.PI / 2) * Math.cos(highBlend * Math.PI / 2), Math.sin(highBlend * Math.PI / 2)];
+      loops.forEach(({ source, gain }, index) => {
+        target(source.playbackRate, clamp(revs / referenceRpm[index], 0.5, 4), 0.065);
+        const volume = (0.38 + load * 0.22) * weights[index];
+        target(gain.gain, engine === 'running' ? volume : 0, engine === 'stalled' ? 0.025 : 0.08);
+      });
+      target(filter.frequency, 950 + revs * 0.3 + load * 1400);
+      target(master.gain, 0.42, 0.03);
+      if (changed && engine === 'starting') oneShot(buffers[3]);
+      if (changed && engine === 'stalled') oneShot(buffers[4]);
     },
 
     setMuted(value) {
