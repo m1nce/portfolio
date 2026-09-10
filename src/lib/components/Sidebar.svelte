@@ -31,7 +31,7 @@
     {/each}
   </nav>
   <div class="header-tools">
-    {#if home}<button class="map-link" on:click={() => window.dispatchEvent(new Event('open-road-map'))}>Road map ↗</button>{/if}
+    <a class="map-link" href="{base}/world/">Explore the valley ↗</a>
     <span class="home-base">Based in San Diego, CA</span>
     <label class="theme-select">
       <span class="sr-only">Color theme</span>
