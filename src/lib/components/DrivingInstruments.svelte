@@ -1,19 +1,12 @@
 <script>
-  import { onDestroy } from 'svelte';
-
   export let rpm = 850;
-  export let gear = 'N';
+  export let gear = 1;
   export let speed = 0;
-  export let engine = 'running';
-  export let clutch = false;
   export let event = '';
   export let eventTime = 0;
   export let disabled = false;
   export let compact = false;
   export let onGear = () => {};
-  export let onRestart = () => {};
-  export let onRecover = () => {};
-  export let onClutch = () => {};
 
   const gates = [
     { gear: 1, x: 24, y: 30 }, { gear: 2, x: 24, y: 108 },
@@ -34,8 +27,6 @@
   let previousGear = gear;
   let leverFrom = gates.find(gate => gate.gear === gear) || gates[6];
   let hasShifted = false;
-  let clutchPointer = null;
-  let clutchButton;
   $: leverTo = gates.find(gate => gate.gear === gear) || gates[6];
   $: if (gear !== previousGear) {
     leverFrom = gates.find(gate => gate.gear === previousGear) || gates[6];
@@ -44,35 +35,10 @@
   }
   $: shownRPM = Math.max(0, Math.round(Number.isFinite(rpm) ? rpm : 0));
   $: needleAngle = -135 + Math.min(shownRPM, 9000) / 9000 * 270;
-  $: grinding = event === 'grind' && eventTime > 0;
-  $: status = engine === 'damaged' ? 'Over-rev. Engine damaged.'
-    : engine === 'stalled' ? 'Engine stalled. Clutch in, then restart.'
-    : grinding ? 'Gear grind. Hold the clutch to shift.'
-    : clutch ? 'Clutch disengaged' : 'Engine running';
-
-  function releaseClutch() {
-    const pointer = clutchPointer;
-    clutchPointer = null;
-    if (pointer !== null && clutchButton?.hasPointerCapture(pointer)) clutchButton.releasePointerCapture(pointer);
-    onClutch(false);
-  }
-  function pressClutch(e) {
-    if (disabled || clutchPointer !== null) return;
-    e.preventDefault();
-    clutchPointer = e.pointerId;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    onClutch(true);
-  }
-  function clutchKey(e, held) {
-    if (![' ', 'Enter'].includes(e.key)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (!disabled) onClutch(held);
-  }
-  onDestroy(releaseClutch);
+  $: blocked = eventTime > 0 && !!event;
+  $: status = blocked ? event === 'direction-blocked' ? 'Stop before changing direction.' : 'Slow down before choosing that gear.'
+    : gear === 'N' ? 'Neutral' : 'Press a gear to shift.';
 </script>
-
-<svelte:window on:blur={releaseClutch} />
 
 <section class="instruments" class:compact aria-label={compact ? 'Driving instruments' : 'Manual transmission instruments'}>
   <div class="tachometer">
@@ -100,7 +66,7 @@
   {#if !compact}
     <div class="shifter">
       <span class="shifter-label">5-speed manual</span>
-      <div class="gearbox" class:grinding>
+      <div class="gearbox">
         <svg viewBox="0 0 132 138" aria-hidden="true">
           <rect class="shift-plate" x="3" y="8" width="126" height="123" rx="24" />
           <path class="gate-shadow" d="M24 30V108 M66 30V108 M108 30V108 M24 69H108" />
@@ -126,15 +92,9 @@
 
     <div class="drive-state">
       <div class="speed"><strong>{Math.round(Math.abs(speed) * 3.6)}</strong><span>km/h</span><b aria-label={`Current gear ${gear}`}>{gear}</b></div>
-      <button class="clutch" class:engaged={clutch} bind:this={clutchButton} {disabled} aria-pressed={clutch} aria-label="Hold clutch. Keyboard shortcut: Shift."
-        on:pointerdown={pressClutch} on:pointerup={releaseClutch} on:pointercancel={releaseClutch} on:lostpointercapture={releaseClutch}
-        on:keydown={e => clutchKey(e, true)} on:keyup={e => clutchKey(e, false)} on:blur={releaseClutch}>
-        <span>{clutch ? 'Clutch down' : 'Hold clutch'}</span><kbd>Shift</kbd>
-      </button>
-      <p class="engine-state" class:warning={engine !== 'running' || grinding} role="status">{status}</p>
-      {#if engine === 'stalled'}<button class="recovery" {disabled} on:click={onRestart}>Restart engine <kbd>I</kbd></button>
-      {:else if engine === 'damaged'}<button class="recovery" {disabled} on:click={onRecover}>Return to garage ↩</button>
-      {:else}<span class="shift-guide">Clutch + <kbd>1–5</kbd> / <kbd>R</kbd> · <kbd>N</kbd> neutral</span>{/if}
+      <p class="assist-label">Assisted shifting</p>
+      <p class="engine-state" class:warning={blocked} role="status">{status}</p>
+      <span class="shift-guide"><kbd>1–5</kbd> gears · <kbd>R</kbd> reverse</span>
     </div>
   {/if}
 </section>
@@ -159,16 +119,12 @@
   .shaft-moving { animation: lift-shaft 240ms linear; }
   @keyframes lift-shaft { 0%, 99% { opacity: 0; } 100% { opacity: 1; } }
   @keyframes shift-gate { 0% { transform: translate(var(--from-x), var(--from-y)); } 32% { transform: translate(var(--from-x), 69px); } 66% { transform: translate(var(--to-x), 69px); } 100% { transform: translate(var(--to-x), var(--to-y)); } }
-  .grinding { animation: gear-grind 260ms linear; }
-  @keyframes gear-grind { 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
   .drive-state { width: 148px; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
   .speed { display: flex; align-items: baseline; gap: 4px; padding: 0 0 8px; }.speed strong { font: 500 30px/1 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; }.speed span { color: #bec5b7; font-size: 9px; }.speed b { display: grid; place-items: center; margin-left: auto; width: 30px; height: 30px; border: 1px solid #666e5d; border-radius: 4px; font-size: 20px; font-weight: 500; }
-  .clutch { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; width: 100%; padding: 8px 10px; border: 1px solid #69725e; border-radius: 4px; background: #394631; color: #f2efd9; font-size: 11px; cursor: pointer; touch-action: none; user-select: none; }
-  .clutch.engaged { background: #b5c797; color: #20301b; border-color: #c6d5ae; }.clutch:disabled { opacity: .55; cursor: default; }
+  .assist-label { margin: 13px 0 0; color: #d4ddc7; font-size: 11px; }
   kbd { font: 9px 'DM Sans', sans-serif; white-space: nowrap; border: 1px solid #83916b80; border-radius: 2px; padding: 1px 3px; }
   .engine-state { margin: 8px 0 5px; min-height: 26px; font-size: 10px; line-height: 1.35; color: #bdc9ad; }.engine-state.warning { color: #ffc393; }
   .shift-guide { margin-top: auto; color: #afb9a7; font-size: 8px; line-height: 1.8; white-space: nowrap; }.shift-guide kbd { font-size: 8px; padding: 0 2px; }
-  .recovery { min-height: 30px; margin-top: auto; border: 1px solid #9a8063; border-radius: 3px; padding: 5px 7px; background: #4c3e2d; color: #ffe2b5; font: 10px 'DM Sans', sans-serif; cursor: pointer; }.recovery kbd { margin-left: 4px; }
   .compact { width: 104px; padding: 0; border: 0; border-radius: 50%; background: transparent; box-shadow: none; pointer-events: none; }.compact .tachometer { width: 104px; height: 104px; flex-basis: 104px; }.compact .digital-rpm { font-size: 18px; }.compact-speed { font-size: 22px; }.compact-speed tspan { font-size: 8px; }.compact .model { display: none; }
-  @media (prefers-reduced-motion: reduce) { .needle { transition: none; }.moving, .shaft-moving, .grinding { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .needle { transition: none; }.moving, .shaft-moving { animation: none; } }
 </style>

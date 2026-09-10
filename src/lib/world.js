@@ -1,10 +1,16 @@
-import { WORLD_SIZE, SPAWN, ROAD_WIDTH, LANDMARKS, OBSTACLES, WATER, roadDistance, segmentDistance } from './worldMap.js';
-import { gearDrive } from './transmission.js';
+import { WORLD_SIZE, SPAWN, ROAD_WIDTH, LANDMARKS, OBSTACLES, WATER, terrainHeight, roadDistance, segmentDistance } from './worldMap.js';
+import { automaticGear, getDriveForces, CAR_MASS } from './transmission.js';
 export { WORLD_SIZE, SPAWN, ROAD_WIDTH, ROADS, LANDMARKS, DISCOVERIES, OBSTACLES, WATER, terrainHeight, roadDistance } from './worldMap.js';
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const wrapAngle = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 const approach = (value, target, amount) => value + clamp(target - value, -amount, amount);
+
+export function terrainGrade(x, z, heading) {
+  if (![x, z, heading].every(Number.isFinite)) return 0;
+  const dx = Math.sin(heading) * 2, dz = -Math.cos(heading) * 2;
+  return (terrainHeight(x + dx, z + dz) - terrainHeight(x - dx, z - dz)) / 4;
+}
 
 export function joystickInput(x, y, cameraHeading = 0) {
   const neutral = { throttle: 0, steering: 0, brake: false };
@@ -20,27 +26,39 @@ export function stepWorldCar(state, input = {}, dt) {
   dt = Math.min(dt, 0.05);
   let { x, z, heading, speed } = state;
   let throttle = Number.isFinite(input.throttle) ? clamp(input.throttle, -1, 1) : 0;
-  const steering = Number.isFinite(input.steering) ? clamp(input.steering, -1, 1) : 0;
   const oldHeading = heading;
-  if (Number.isFinite(input.targetHeading) && throttle > 0 && !input.brake) {
-    const difference = wrapAngle(input.targetHeading - heading);
+  const joystick = Number.isFinite(input.targetHeading) && throttle > 0 && !input.brake;
+  const difference = joystick ? wrapAngle(input.targetHeading - heading) : 0;
+  const steeringTarget = joystick ? clamp(difference / .7, -1, 1) : Number.isFinite(input.steering) ? clamp(input.steering, -1, 1) : 0;
+  const oldSteering = Number.isFinite(state.steering) ? clamp(state.steering, -1, 1) : 0;
+  const steering = approach(oldSteering, steeringTarget, 4 * dt);
+  const averageSteering = (oldSteering + steering) / 2;
+  if (joystick) {
+    const turn = averageSteering * (2.8 - 1.5 * clamp(Math.abs(speed) / 15, 0, 1)) * dt;
     // Screen-direction steering turns toward the thumb before accelerating away.
-    heading += clamp(difference, -5.5 * dt, 5.5 * dt);
+    heading += Math.sign(turn) === Math.sign(difference) && Math.abs(turn) > Math.abs(difference) ? difference : turn;
     throttle *= Math.max(0, Math.cos(wrapAngle(input.targetHeading - heading)));
   } else {
-    heading += steering * 1.75 * clamp(speed / 8, -1, 1) * dt;
+    const turnRate = 1.1 / (1 + Math.max(0, Math.abs(speed) - 8) / 20);
+    heading += averageSteering * turnRate * clamp(speed / 6, -1, 1) * dt;
   }
-  const onRoad = roadDistance(x, z) <= ROAD_WIDTH / 2;
-  const manual = input.gear !== undefined ? gearDrive(input.gear, speed, throttle, onRoad) : null;
-  const drivePower = input.drivePower === undefined ? 1 : Number.isFinite(input.drivePower) ? clamp(input.drivePower, 0, 1) : 0;
-  const disconnected = manual && (drivePower === 0 || input.clutch || input.gear === 'N');
-  const targetSpeed = input.brake || disconnected ? 0 : manual ? manual.targetSpeed : throttle * (throttle < 0 ? 9 : onRoad ? 26 : 15);
-  const rate = input.brake ? 28 : disconnected ? (input.engineBrake && !input.clutch && input.gear !== 'N' ? 12 : 2)
-    : speed * targetSpeed < 0 ? 26 : targetSpeed === 0 ? 7
-      : manual ? (Math.abs(speed) > Math.abs(targetSpeed) ? 10 : manual.acceleration * drivePower) : 12;
-  const nextSpeed = approach(speed, targetSpeed, rate * dt);
-  const distance = (speed + nextSpeed) * 0.5 * dt;
+  const requestedThrottle = input.gear !== undefined ? Math.max(0, throttle) : throttle;
+  const oldThrottle = Number.isFinite(state.throttle) ? clamp(state.throttle, -1, 1) : 0;
+  throttle = input.brake ? 0 : approach(oldThrottle, requestedThrottle, (Math.abs(requestedThrottle) < Math.abs(oldThrottle) ? 6 : 3) * dt);
   const travelHeading = oldHeading + wrapAngle(heading - oldHeading) * 0.5;
+  const grade = terrainGrade(x, z, travelHeading);
+  const onRoad = roadDistance(x, z) <= ROAD_WIDTH / 2;
+  const gear = input.gear !== undefined ? input.gear : throttle < 0 ? 'R' : automaticGear(Math.abs(speed), grade);
+  const drivePower = input.drivePower === undefined ? 1 : Number.isFinite(input.drivePower) ? clamp(input.drivePower, 0, 1) : 0;
+  const reversing = input.gear === undefined && requestedThrottle * speed < 0 && Math.abs(speed) > .15;
+  // Automatic hill hold keeps an unattended car parked; pressing gas releases it, even when a high gear cannot climb.
+  const hillHold = gear !== 'N' && requestedThrottle === 0 && Math.abs(throttle) < .02 && Math.abs(speed) < .08;
+  const braking = input.brake || hillHold || reversing;
+  const forces = getDriveForces(speed, gear, braking ? 0 : Math.abs(throttle), grade, onRoad, drivePower);
+  const freeSpeed = speed + (forces.drive + forces.gravity + forces.drag) / CAR_MASS * dt;
+  const resistance = (forces.rolling + forces.engineBrake) / CAR_MASS + (braking ? 14 : 0);
+  const nextSpeed = approach(freeSpeed, 0, resistance * dt);
+  const distance = (speed + nextSpeed) * .5 * dt / Math.hypot(1, grade);
   const next = { x: x + Math.sin(travelHeading) * distance, z: z - Math.cos(travelHeading) * distance };
   // ponytail: circle colliders suit this small world; use mesh colliders for detailed interiors.
   const collision = OBSTACLES.some((obstacle) => segmentDistance(obstacle.x, obstacle.z, state, next) < obstacle.radius + 1.25)
@@ -49,10 +67,10 @@ export function stepWorldCar(state, input = {}, dt) {
       return segmentDistance(0, 0, normalized(state), normalized(next)) < 1;
     });
   const limit = WORLD_SIZE / 2 - 1.5;
-  if (collision) return { x, z, heading: wrapAngle(heading), speed: 0 };
+  if (collision) return { x, z, heading: wrapAngle(heading), speed: 0, steering, throttle };
   const boundedX = clamp(next.x, -limit, limit);
   const boundedZ = clamp(next.z, -limit, limit);
-  return { x: boundedX, z: boundedZ, heading: wrapAngle(heading), speed: boundedX !== next.x || boundedZ !== next.z ? 0 : nextSpeed };
+  return { x: boundedX, z: boundedZ, heading: wrapAngle(heading), speed: boundedX !== next.x || boundedZ !== next.z ? 0 : nextSpeed, steering, throttle };
 }
 
 export function nearestLandmark(state) {

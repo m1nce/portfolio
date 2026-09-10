@@ -8,9 +8,11 @@ npm run dev
 npm run check
 ```
 
-Desktop: W/Up accelerates, A/D or Left/Right steers, S/Down or Space brakes. The car starts idling in neutral. Hold **Shift** for the clutch, select **1–5** or **R**, add gas, then release Shift to engage. **N** selects neutral. The animated H-pattern lever follows each accepted shift; the tachometer follows engine RPM, including free revving with the clutch down.
+Desktop: W/Up accelerates, A/D or Left/Right steers, S/Down or Space brakes. The car starts in first gear, ready to drive. Press **1–5** or click the H-pattern shifter to change gears; **R** selects reverse once stopped and **N** selects neutral. Clutch operation is automatic. Throttle and rev changes build gradually, and steering eases in with less response at higher speeds. The tachometer and optional engine sound follow the revs.
 
-Shifting without the clutch grinds and briefly interrupts power. Stopping in gear without the clutch, or trying to pull away in too high a gear, can stall the engine; hold the clutch or select neutral and press **I** to restart. Releasing the clutch after a mechanically unsafe downshift over-revs and damages the engine: return to the garage to repair it. These are game events, with no counters. Optional engine sound includes grinding and stall feedback.
+Speed comes from engine torque through the selected gear, gravity along the actual terrain, rolling resistance, and aerodynamic drag. Fifth can lose speed or roll backward on a climb when it lacks enough wheel torque. Lifting off in third gives stronger engine braking than fifth; neutral coasts freely under gravity. Automatic hill hold keeps an unattended car parked in gear until you press the gas, and the brake holds it on slopes. The signed grade beside the elevation shows the slope in the direction the car faces.
+
+Stopping and shifting cannot stall or damage the engine. Unsafe downshifts and direction changes are rejected with a short hint to slow down; the current gear and momentum are preserved.
 
 Compact and touch layouts keep automatic transmission, a small tachometer, and the screen-direction joystick.
 
