@@ -1,18 +1,17 @@
-/** @type {Array<{title: string, description: string, tags: string[], link: string, image: string, sparkline?: number[]}>} */
+/** @type {Array<{title: string, description: string, tags: string[], link: string, image: string}>} */
 export const projects = [
   {
     title: 'BabyPandas Documentation',
-    description: 'Built using Docusaurus. Provides students an easy-to-view documentation site that loosely mirrors the pandas documentation site.',
-    tags: ['HTML', 'CSS', 'JavaScript'],
+    description: 'Making data science easier to learn. A clear, approachable documentation site for students working with babypandas.',
+    tags: ['Documentation', 'Docusaurus', 'JavaScript'],
     link: 'https://github.com/dsc-courses/bpd-reference',
     image: '/img/bpd-reference.png',
   },
   {
     title: 'Portfolio Site',
-    description: 'This site — built with SvelteKit, featuring a mouse-reactive Canvas time-series hero and component-scoped CSS.',
-    tags: ['SvelteKit', 'Canvas API', 'CSS', 'GitHub Pages'],
+    description: 'A personal portfolio taking the scenic route, with a stock MX-5 and an illustrated mountain drive that follows your scroll.',
+    tags: ['SvelteKit', 'Interaction design', 'CSS'],
     link: 'https://github.com/m1nce/portfolio',
-    image: '',
-    sparkline: [0.5, 0.55, 0.6, 0.58, 0.65, 0.7, 0.68, 0.75, 0.73, 0.8, 0.78, 0.85]
+    image: '/img/mountain-terrain.png',
   }
 ];

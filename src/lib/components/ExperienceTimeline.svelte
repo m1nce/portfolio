@@ -147,7 +147,7 @@
   [data-type="research"] { border-color: oklch(72% 0.15 200); }
   [data-type="industry"] { border-color: oklch(72% 0.15 50); }
   [data-type="teaching"] { border-color: oklch(72% 0.15 290); }
-  [data-type="education"] { border-color: var(--color-signal); }
+  [data-type="education"] { border-color: var(--color-education); }
 
   .role {
     font-size: 1rem;
@@ -188,7 +188,7 @@
   [data-type="research"] .gantt-bar { background: oklch(72% 0.15 200); }
   [data-type="industry"] .gantt-bar { background: oklch(72% 0.15 50); }
   [data-type="teaching"] .gantt-bar { background: oklch(72% 0.15 290); }
-  [data-type="education"] .gantt-bar { background: var(--color-signal); }
+  [data-type="education"] .gantt-bar { background: var(--color-education); }
 
   .type-badge {
     font-family: var(--font-mono);

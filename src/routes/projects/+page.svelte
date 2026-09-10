@@ -19,7 +19,6 @@
         tags={project.tags}
         link={project.link}
         image={project.image}
-        sparkline={project.sparkline}
       />
     {/each}
   </div>
