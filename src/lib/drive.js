@@ -14,11 +14,23 @@ export function roadPosition(y, width) {
   return { x: width * 0.5 + amplitude * Math.sin(phase), angle: -Math.atan(slope) * 180 / Math.PI, roadWidth };
 }
 
+// Coordinates are fractions of the joystick radius; up is negative Y.
+export function joystickInput(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { x: 0, y: 0, throttle: 0, brake: false, steering: 0 };
+  const radius = Math.max(1, Math.hypot(x, y));
+  x /= radius;
+  y /= radius;
+  const deadzone = 0.12;
+  return { x, y, throttle: Math.max(0, (-y - deadzone) / (1 - deadzone)), brake: y > deadzone,
+    steering: Math.abs(x) > deadzone ? Math.sign(x) * (Math.abs(x) - deadzone) / (1 - deadzone) : 0 };
+}
+
 // Heading is radians from downhill: positive turns right, negative turns left.
 export function advanceCar(car, input, dt, width, maxY) {
   if (!Number.isFinite(dt) || dt <= 0) return { ...car };
   dt = Math.min(dt, 0.05);
-  const acceleration = input.brake ? -500 : input.throttle ? 180 : -100;
+  const throttle = input.throttle === true ? 1 : Number.isFinite(input.throttle) ? Math.max(0, Math.min(1, input.throttle)) : 0;
+  const acceleration = input.brake ? -500 : throttle > 0 ? 180 * throttle : -100;
   let speed = Math.max(0, Math.min(260, car.speed + acceleration * dt));
   const travelSpeed = (car.speed + speed) / 2;
   let heading = Math.max(-1.1, Math.min(1.1, car.heading + input.steering * 1.5 * Math.min(1, travelSpeed / 80) * dt));

@@ -30,7 +30,7 @@
         <button class="drive-button" on:click={() => drivingScene.startDrive()}>Start the drive <span aria-hidden="true">↑</span></button>
         <button class="text-link" on:click={() => drivingScene.openMap()}>Browse road map ↗</button>
       </div>
-      <p class="driving-hint">Use the arrow keys to drive. Pull over to explore.<br />Or simply scroll — every stop is open.</p>
+      <p class="driving-hint"><span class="desktop-driving-hint">Use the arrow keys to drive. Pull over to explore.</span><span class="mobile-driving-hint">Use the thumb joystick: up to accelerate, sideways to steer, down to brake. Pull over to explore.</span><br />Or simply scroll — every stop is open.</p>
     </div>
   </section>
 
@@ -99,6 +99,7 @@
   .drive-button { display: inline-flex; align-items: center; gap: 1.5rem; min-height: 48px; padding: .7rem 1rem; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); font-size: .85rem; }
   .drive-button:hover { background: var(--text); }
   .driving-hint { margin: 1rem 0 0; font-size: .72rem; line-height: 1.7; color: var(--text-muted); }
+  .mobile-driving-hint { display: none; }
   .project-demo { margin-block: 2rem; }
   h2 { font: 500 clamp(2.5rem, 4.5vw, 4.5rem)/1 var(--font-display); letter-spacing: -.02em; margin: 0; }
   .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
@@ -127,23 +128,35 @@
     .projects-grid :global(.project-card) { display: block; }
     .projects-grid :global(.project-image) { display: none; }
   }
-  @media (max-width: 700px) {
-    .landmark-section { padding: 20svh 1.25rem 20svh 33%; min-height: 108svh; }
-    .hero { padding-top: 22svh; }
-    .landmark { font-size: .68rem; gap: .5rem; margin-bottom: 2rem; }
-    .landmark > span { width: 26px; height: 30px; }
-    .role { font-size: .72rem; line-height: 1.5; }
-    h1 { font-size: clamp(4rem, 16vw, 6rem); line-height: .88; }
-    h2 { font-size: clamp(2.3rem, 9vw, 3.7rem); }
-    .intro-copy { font-size: 1.1rem; }
-    .intro-detail, .section-intro { font-size: .84rem; }
+  @media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
+    .landmark-section { padding: calc(72px + var(--mobile-road-height) + 24px) 20px 110px; min-height: 100svh; scroll-margin-top: calc(-72px - var(--mobile-road-height) - 24px); }
+    .landmark-content { max-width: 560px; margin-inline: auto; }
+    .landmark { font-size: .75rem; gap: .5rem; margin-bottom: 1.25rem; }
+    .landmark > span { width: 28px; height: 32px; }
+    .role { font-size: .8rem; line-height: 1.5; }
+    h1 { font-size: clamp(4.5rem, 18vw, 6.5rem); line-height: .88; margin-bottom: 1.5rem; }
+    h2 { font-size: clamp(2.75rem, 10vw, 3.5rem); }
+    .intro-copy { font-size: 1.15rem; margin-bottom: 1rem; }
+    .intro-detail, .section-intro { font-size: .9rem; }
+    .intro-detail { margin-bottom: 1.25rem; }
+    .driving-hint { font-size: .8rem; }
+    .desktop-driving-hint { display: none; }
+    .mobile-driving-hint { display: inline; }
     .desktop-break { display: none; }
     .section-heading > .text-link { display: none; }
-    .about-copy { font-size: .94rem; line-height: 1.75; }
-    .contact-section h2 { font-size: 2.9rem; }
-    .email-link { gap: .35rem; font-size: clamp(.73rem, 3.1vw, 1rem); white-space: nowrap; }
-    .contact-copy { font-size: .9rem; }
+    .about-copy { font-size: 1rem; line-height: 1.75; }
+    .contact-section { padding-bottom: calc(208px + env(safe-area-inset-bottom)); }
+    .contact-section h2 { font-size: clamp(3rem, 12vw, 4rem); }
+    .email-link { gap: .5rem; font-size: clamp(.9rem, 4vw, 1.1rem); }
+    .contact-copy { font-size: .95rem; }
     .social-links { gap: 0 1.15rem; margin: 1.5rem 0 2.5rem; }
-    .text-link { font-size: .78rem; gap: .5rem; }
+    .text-link { font-size: .85rem; gap: .5rem; }
+    .back-to-start { display: inline-flex; align-items: center; min-height: 44px; font-size: .8rem; }
+  }
+  @media (min-width: 560px) and (max-width: 1000px) and (max-height: 500px) {
+    .landmark-section { padding: 96px 20px 40px calc(45% + 20px); scroll-margin-top: -96px; }
+    h1 { font-size: 4rem; }
+    h2, .contact-section h2 { font-size: 2.8rem; }
+    .contact-section { padding-bottom: 40px; }
   }
 </style>

@@ -1,6 +1,29 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { advanceCar, driveState, roadPosition } from './drive.js';
+import { advanceCar, driveState, joystickInput, roadPosition } from './drive.js';
+
+const neutral = { x: 0, y: 0, throttle: 0, brake: false, steering: 0 };
+assert.deepEqual(joystickInput(0, 0), neutral, 'Releasing the joystick must clear every input');
+for (const [x, y] of [[0.1, -0.1], [-0.1, 0.1]]) {
+  const input = joystickInput(x, y);
+  assert.equal(input.throttle, 0, 'Small thumb movements must not accelerate');
+  assert.equal(input.brake, false, 'Small thumb movements must not brake');
+  assert.equal(input.steering, 0, 'Small thumb movements must not steer');
+}
+assert.deepEqual(joystickInput(0, -1), { ...neutral, y: -1, throttle: 1 }, 'Up must accelerate');
+assert.deepEqual(joystickInput(0, 1), { ...neutral, y: 1, brake: true }, 'Down must brake');
+assert.deepEqual(joystickInput(-1, 0), { ...neutral, x: -1, steering: -1 }, 'Left must steer left');
+assert.deepEqual(joystickInput(1, 0), { ...neutral, x: 1, steering: 1 }, 'Right must steer right');
+const diagonal = joystickInput(3, -4);
+assert.ok(Math.abs(diagonal.x - 0.6) < 1e-12 && Math.abs(diagonal.y + 0.8) < 1e-12, 'Dragging outside the pad must keep the knob on its circle and preserve direction');
+assert.ok(diagonal.throttle > 0 && diagonal.throttle < 1 && diagonal.steering > 0 && diagonal.steering < 1 && !diagonal.brake, 'Diagonal dragging must accelerate and steer together');
+const light = joystickInput(0, -0.5);
+assert.ok(light.throttle > 0 && light.throttle < 1, 'Partial upward travel must give partial throttle');
+for (const invalid of [NaN, Infinity, -Infinity, undefined, null, '1']) {
+  assert.deepEqual(joystickInput(invalid, 1), neutral, 'Invalid horizontal coordinates must fail neutral');
+  assert.deepEqual(joystickInput(1, invalid), neutral, 'Invalid vertical coordinates must fail neutral');
+}
+console.log('Joystick checks passed: neutral, deadzone, directions, diagonal clamp, and invalid coordinates.');
 
 assert.deepEqual(driveState(0, 1000), { progress: 0, distance: 0 });
 assert.deepEqual(driveState(500, 1000), { progress: 0.5, distance: 500 });
@@ -28,6 +51,10 @@ const gas = { ...idle, throttle: true };
 const start = { x: roadPosition(1000, 550).x, y: 1000, heading: 0, speed: 0 };
 const moving = advanceCar(start, gas, 0.05, 550, 6000);
 assert.ok(moving.speed > 0 && moving.y > start.y, 'Throttle must accelerate and travel forward');
+const lightlyMoving = advanceCar(start, light, 0.05, 550, 6000);
+assert.ok(lightlyMoving.speed > 0 && lightlyMoving.speed < moving.speed && lightlyMoving.y < moving.y, 'Lighter joystick pressure must accelerate and travel less');
+assert.deepEqual(advanceCar(start, { ...idle, throttle: 1 }, 0.05, 550, 6000), moving, 'Full analog throttle must match the keyboard');
+assert.deepEqual(advanceCar(moving, { ...idle, throttle: 0 }, 0.05, 550, 6000), advanceCar(moving, idle, 0.05, 550, 6000), 'Zero analog throttle must match releasing the keyboard');
 assert.equal(start.speed, 0, 'Movement must not mutate its input');
 assert.ok(advanceCar(moving, idle, 0.05, 550, 6000).speed < moving.speed, 'Releasing throttle must coast to a stop');
 assert.equal(advanceCar(moving, { ...gas, brake: true }, 0.05, 550, 6000).speed, 0, 'Braking must take priority over throttle');
