@@ -27,10 +27,10 @@
       <p class="intro-copy">I explore how people and AI<br class="desktop-break" /> can work better together.</p>
       <p class="intro-detail">Graduate student at UC San Diego.<br />Usually taking the scenic route.</p>
       <div class="journey-actions">
-        <button class="drive-button" on:click={() => drivingScene.startDrive()}>Start the drive <span aria-hidden="true">↑</span></button>
+        <button class="drive-button" on:click={() => drivingScene.startDrive()}>Start the drive <span class="desktop-driving-hint" aria-hidden="true">↑</span><span class="mobile-driving-hint" aria-hidden="true">↓</span></button>
         <button class="text-link" on:click={() => drivingScene.openMap()}>Browse road map ↗</button>
       </div>
-      <p class="driving-hint"><span class="desktop-driving-hint">Use the arrow keys to drive. Pull over to explore.</span><span class="mobile-driving-hint">Use the thumb joystick: up to accelerate, sideways to steer, down to brake. Pull over to explore.</span><br />Or simply scroll — every stop is open.</p>
+      <p class="driving-hint"><span class="desktop-driving-hint">Use the arrow keys to drive. Pull over to explore.</span><span class="mobile-driving-hint">Follow the car with your thumb: down to drive, left or right to steer, up to brake. Pull over to explore.</span><br />Or simply scroll — every stop is open.</p>
     </div>
   </section>
 

@@ -10,15 +10,15 @@ for (const [x, y] of [[0.1, -0.1], [-0.1, 0.1]]) {
   assert.equal(input.brake, false, 'Small thumb movements must not brake');
   assert.equal(input.steering, 0, 'Small thumb movements must not steer');
 }
-assert.deepEqual(joystickInput(0, -1), { ...neutral, y: -1, throttle: 1 }, 'Up must accelerate');
-assert.deepEqual(joystickInput(0, 1), { ...neutral, y: 1, brake: true }, 'Down must brake');
+assert.deepEqual(joystickInput(0, 1), { ...neutral, y: 1, throttle: 1 }, 'Down must accelerate along the downhill route');
+assert.deepEqual(joystickInput(0, -1), { ...neutral, y: -1, brake: true }, 'Up must brake');
 assert.deepEqual(joystickInput(-1, 0), { ...neutral, x: -1, steering: -1 }, 'Left must steer left');
 assert.deepEqual(joystickInput(1, 0), { ...neutral, x: 1, steering: 1 }, 'Right must steer right');
-const diagonal = joystickInput(3, -4);
-assert.ok(Math.abs(diagonal.x - 0.6) < 1e-12 && Math.abs(diagonal.y + 0.8) < 1e-12, 'Dragging outside the pad must keep the knob on its circle and preserve direction');
+const diagonal = joystickInput(3, 4);
+assert.ok(Math.abs(diagonal.x - 0.6) < 1e-12 && Math.abs(diagonal.y - 0.8) < 1e-12, 'Dragging outside the pad must keep the knob on its circle and preserve direction');
 assert.ok(diagonal.throttle > 0 && diagonal.throttle < 1 && diagonal.steering > 0 && diagonal.steering < 1 && !diagonal.brake, 'Diagonal dragging must accelerate and steer together');
-const light = joystickInput(0, -0.5);
-assert.ok(light.throttle > 0 && light.throttle < 1, 'Partial upward travel must give partial throttle');
+const light = joystickInput(0, 0.5);
+assert.ok(light.throttle > 0 && light.throttle < 1, 'Partial downward travel must give partial throttle');
 for (const invalid of [NaN, Infinity, -Infinity, undefined, null, '1']) {
   assert.deepEqual(joystickInput(invalid, 1), neutral, 'Invalid horizontal coordinates must fail neutral');
   assert.deepEqual(joystickInput(1, invalid), neutral, 'Invalid vertical coordinates must fail neutral');
@@ -48,6 +48,24 @@ console.log('Road checks passed: lane bounds and car heading through every bend 
 
 const idle = { throttle: false, brake: false, steering: 0 };
 const gas = { ...idle, throttle: true };
+for (const side of [-1, 1]) {
+  const stick = joystickInput(side, 1);
+  const input = { ...stick, heading: stick.steering * 1.1 };
+  for (const heading of [-0.5, 0.5]) {
+    const car = { x: roadPosition(600, 390).x, y: 600, heading, speed: 100 };
+    const next = advanceCar(car, input, 1 / 60, 390, 6000);
+    assert.ok((next.x - car.x) * side > 0, 'Joystick direction must override the previous turn immediately');
+    const reversed = advanceCar(next, { ...input, steering: -stick.steering, heading: -input.heading }, 1 / 60, 390, 6000);
+    assert.ok((reversed.x - next.x) * side < 0, 'Reversing the joystick must immediately reverse lateral movement');
+  }
+  const y = side === 1 ? 600 : 100;
+  const road = roadPosition(y, 390);
+  const car = { x: road.x + side * road.roadWidth * .27, y, heading: side * .5, speed: 100 };
+  const stopped = advanceCar(car, input, 1 / 60, 390, 6000);
+  assert.equal(stopped.x, car.x, 'The shoulder must not push the car against the joystick');
+  assert.equal(stopped.y, car.y, 'A blocked car must stay within the existing road bounds');
+  assert.equal(stopped.speed, 0, 'Steering out of the road must stop the car');
+}
 const start = { x: roadPosition(1000, 550).x, y: 1000, heading: 0, speed: 0 };
 const moving = advanceCar(start, gas, 0.05, 550, 6000);
 assert.ok(moving.speed > 0 && moving.y > start.y, 'Throttle must accelerate and travel forward');

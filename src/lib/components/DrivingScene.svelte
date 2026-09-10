@@ -101,8 +101,10 @@
       if (!state || (!driving && !parked && motion)) state = onRoad(target);
       if (driving) {
         const pressed = key => held.has(key) || [...pointers.values()].includes(key);
+        const keyboardSteering = Number(pressed('ArrowRight')) - Number(pressed('ArrowLeft'));
         state = advanceCar(state, { throttle: pressed('ArrowUp') ? 1 : stick.throttle, brake: pressed('ArrowDown') || stick.brake,
-          steering: Math.max(-1, Math.min(1, Number(pressed('ArrowRight')) - Number(pressed('ArrowLeft')) + stick.steering)) }, (time - previousTime) / 1000, landscapeWidth, maxY);
+          steering: Math.max(-1, Math.min(1, keyboardSteering + stick.steering)),
+          heading: stickPointer !== null && !keyboardSteering ? stick.steering * 1.1 : undefined }, (time - previousTime) / 1000, landscapeWidth, maxY);
         window.scrollTo({ top: state.y - anchor() + sceneTop, behavior: 'instant' });
         speed = Math.round(state.speed / 6);
       }
@@ -264,7 +266,7 @@
       <span class="stick-thumb" style:left="{50 + stick.x * 28}%" style:top="{50 + stick.y * 28}%" aria-hidden="true"><span></span></span>
     </button>
     <div class="mobile-actions">
-      <p id="joystick-instructions">Push up to drive.<br />Steer sideways. Pull down to brake.</p>
+      <p id="joystick-instructions">Down to drive. Up to brake.<br />Steer left or right.</p>
       <div class="mobile-action-row"><button class="pull-over" disabled={!nearby} on:click={() => park(nearby.id)}>Pull over</button><button on:click={openMap}>Map</button><button on:click={() => stop()}>Exit</button></div>
       <span class="mobile-message" role="status">{nearby ? 'A stop is nearby.' : 'Release to coast.'}</span>
     </div>
