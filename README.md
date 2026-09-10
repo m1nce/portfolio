@@ -8,7 +8,11 @@ npm run dev
 npm run check
 ```
 
-Desktop: W/Up accelerates, A/D or Left/Right steers, S/Down or Space brakes. Select manual gears with **1–5** and **R** for reverse when stopped, then use W/Up to accelerate in that gear. Higher gears trade launch acceleration for speed. Compact and touch layouts use automatic transmission with a joystick: point where you want to go in the current view.
+Desktop: W/Up accelerates, A/D or Left/Right steers, S/Down or Space brakes. The car starts idling in neutral. Hold **Shift** for the clutch, select **1–5** or **R**, add gas, then release Shift to engage. **N** selects neutral. The animated H-pattern lever follows each accepted shift; the tachometer follows engine RPM, including free revving with the clutch down.
+
+Shifting without the clutch grinds and briefly interrupts power. Stopping in gear without the clutch, or trying to pull away in too high a gear, can stall the engine; hold the clutch or select neutral and press **I** to restart. Releasing the clutch after a mechanically unsafe downshift over-revs and damages the engine: return to the garage to repair it. These are game events, with no counters. Optional engine sound includes grinding and stall feedback.
+
+Compact and touch layouts keep automatic transmission, a small tachometer, and the screen-direction joystick.
 
 E talks, M opens the map, C cycles Overhead → High chase → Chase, and P pauses. The map pins destinations without moving the car. Conversations pause the same world in place.
 

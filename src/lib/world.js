@@ -32,9 +32,12 @@ export function stepWorldCar(state, input = {}, dt) {
   }
   const onRoad = roadDistance(x, z) <= ROAD_WIDTH / 2;
   const manual = input.gear !== undefined ? gearDrive(input.gear, speed, throttle, onRoad) : null;
-  const targetSpeed = input.brake ? 0 : manual ? manual.targetSpeed : throttle * (throttle < 0 ? 9 : onRoad ? 26 : 15);
-  const rate = input.brake ? 28 : speed * targetSpeed < 0 ? 26 : targetSpeed === 0 ? 7
-    : manual ? (Math.abs(speed) > Math.abs(targetSpeed) ? 10 : manual.acceleration) : 12;
+  const drivePower = input.drivePower === undefined ? 1 : Number.isFinite(input.drivePower) ? clamp(input.drivePower, 0, 1) : 0;
+  const disconnected = manual && (drivePower === 0 || input.clutch || input.gear === 'N');
+  const targetSpeed = input.brake || disconnected ? 0 : manual ? manual.targetSpeed : throttle * (throttle < 0 ? 9 : onRoad ? 26 : 15);
+  const rate = input.brake ? 28 : disconnected ? (input.engineBrake && !input.clutch && input.gear !== 'N' ? 12 : 2)
+    : speed * targetSpeed < 0 ? 26 : targetSpeed === 0 ? 7
+      : manual ? (Math.abs(speed) > Math.abs(targetSpeed) ? 10 : manual.acceleration * drivePower) : 12;
   const nextSpeed = approach(speed, targetSpeed, rate * dt);
   const distance = (speed + nextSpeed) * 0.5 * dt;
   const travelHeading = oldHeading + wrapAngle(heading - oldHeading) * 0.5;

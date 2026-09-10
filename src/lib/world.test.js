@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { WORLD_SIZE, SPAWN, WATER, ROAD_WIDTH, LANDMARKS, OBSTACLES, roadDistance, stepWorldCar, joystickInput, nearestLandmark } from './world.js';
+import * as mechanics from './transmission.js';
 
 const idle = { throttle: 0, steering: 0, brake: false };
 const gas = { ...idle, throttle: 1 };
@@ -110,6 +111,11 @@ const manualReverse = drive(clear, { ...gas, gear: 'R' }, 1);
 assert.ok(manualReverse.speed < 0 && manualReverse.z > clear.z, 'Accelerating in R backs up');
 assert.equal(drive({ ...clear, speed: 5 }, { ...gas, gear: 1, brake: true }, 2).speed, 0, 'Manual brake must never auto-reverse');
 assert.equal(drive(clear, { ...gas, gear: 1, throttle: -1 }, 1).speed, 0, 'Negative throttle must not reverse a manual forward gear');
+assert.equal(drive(clear, { ...gas, gear: 1, drivePower: 0 }, 1).speed, 0, 'A disconnected or stopped engine cannot accelerate despite held throttle');
+const powerless = stepWorldCar({ ...clear, speed: 8 }, { ...gas, gear: 1, drivePower: 0, clutch: true }, .05);
+assert.ok(powerless.speed > 7 && powerless.speed < 8, 'A clutch or engine power cut must coast gradually, not stop the car instantly');
+assert.ok(stepWorldCar({ ...clear, speed: 8 }, { ...gas, gear: 'N', drivePower: 0 }, .05).speed > 7, 'Neutral must let the car roll');
+assert.equal(drive(clear, { ...gas, gear: 1, drivePower: NaN }, 1).speed, 0, 'Invalid engine power must fail disconnected');
 const downshift = stepWorldCar({ ...clear, speed: 25 }, { ...gas, gear: 1 }, .05);
 assert.ok(downshift.speed > 20 && downshift.speed < 25, 'Downshifting must slow gradually');
 for (const water of WATER) {
@@ -121,3 +127,39 @@ for (const water of WATER) {
 }
 
 console.log('Open-world checks passed: screen-direction steering, free roaming, reverse, analog input, frame stability, collision recovery, manual gears, water boundaries, and reachable encounters.');
+
+function driveManual(car, transmission, controls, seconds) {
+  for (let i = 0; i < Math.round(seconds * 60); i++) {
+    transmission = mechanics.stepTransmission(transmission, controls, car.speed, 1 / 60);
+    car = stepWorldCar(car, { ...controls, gear: transmission.gear,
+      drivePower: transmission.engine === 'running' && transmission.event !== 'grind' ? transmission.coupling : 0,
+      engineBrake: transmission.engine === 'damaged' }, 1 / 60);
+  }
+  return { car, transmission };
+}
+const ready = driveManual(clear, mechanics.selectTransmissionGear(mechanics.createTransmission(), 1, 0, true), { throttle: .5, clutch: true }, .5);
+assert.equal(ready.car.speed, 0, 'Revving with the clutch held must not move the car');
+const launched = driveManual(ready.car, ready.transmission, { throttle: 1, clutch: false }, 1.2);
+assert.equal(launched.transmission.engine, 'running', 'A revved first-gear clutch release must launch successfully');
+assert.ok(launched.car.speed > 5, 'A successful launch must actually move through the world');
+const wrongLaunch = driveManual(clear, mechanics.selectTransmissionGear(mechanics.createTransmission(), 5, 0, true), { throttle: 1 }, 2);
+assert.equal(wrongLaunch.transmission.engine, 'stalled', 'Launching in fifth must bog down and stall');
+const stoppedInGear = driveManual(launched.car, launched.transmission, { brake: true }, 2);
+assert.equal(stoppedInGear.transmission.engine, 'stalled', 'Braking to a stop without the clutch must stall');
+assert.equal(stoppedInGear.car.speed, 0);
+const clutchStop = driveManual(launched.car, launched.transmission, { brake: true, clutch: true }, 2);
+assert.equal(clutchStop.transmission.engine, 'running', 'Braking with the clutch held must preserve idle');
+const interrupted = mechanics.selectTransmissionGear(launched.transmission, 2, launched.car.speed, false);
+const grindingCar = driveManual(launched.car, interrupted, { throttle: 1 }, .2);
+assert.ok(grindingCar.car.speed < launched.car.speed, 'A grinding shift must interrupt power in the world');
+assert.ok(grindingCar.car.speed > launched.car.speed - 2, 'Grinding cannot instantly erase momentum');
+const reverseLaunch = driveManual(clear, mechanics.selectTransmissionGear(mechanics.createTransmission(), 'R', 0, true), { throttle: 1 }, 1.2);
+assert.equal(reverseLaunch.transmission.engine, 'running', 'Reverse must support a clutch launch');
+assert.ok(reverseLaunch.car.speed < -4 && reverseLaunch.car.z > clear.z, 'Reverse must drive backward with the engine engaged');
+const unsafe = mechanics.selectTransmissionGear({ ...launched.transmission, gear: 5 }, 1, 25, true);
+const moneyShifted = driveManual({ ...clear, speed: 25 }, unsafe, { throttle: 1 }, .3);
+assert.equal(moneyShifted.transmission.engine, 'damaged', 'The world must retain actual engine damage after an unsafe clutch release');
+assert.ok(moneyShifted.car.speed < 25 && moneyShifted.car.speed > 19, 'Mechanical overrev must remove power and slow the car without teleporting it');
+const deadEngine = driveManual(clear, moneyShifted.transmission, { throttle: 1 }, 1);
+assert.equal(deadEngine.car.speed, 0, 'A moneyshifted engine cannot drive away until repaired');
+console.log('Manual driving integration passed: clutch launches in forward/reverse, grinding power interruption, high-gear stall, clutch braking, and mechanical overrev damage.');

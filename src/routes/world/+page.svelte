@@ -3,8 +3,10 @@
   import { base } from '$app/paths';
   import { SPAWN, LANDMARKS, DISCOVERIES, terrainHeight, stepWorldCar, joystickInput, nearestLandmark } from '$lib/world.js';
   import { CAMERA_VIEWS } from '$lib/worldCamera.js';
-  import { GEARS, shiftGear, gearDrive } from '$lib/transmission.js';
+  import { createTransmission, selectTransmissionGear, stepTransmission, restartTransmission, gearDrive } from '$lib/transmission.js';
+  import { createEngineAudio } from '$lib/engineAudio.js';
   import WorldMap from '$lib/components/WorldMap.svelte';
+  import DrivingInstruments from '$lib/components/DrivingInstruments.svelte';
 
   let canvas;
   let panel;
@@ -19,8 +21,10 @@
   let visited = [];
   let found = [];
   let manualTransmission = false;
-  let selectedGear = 1;
-  let shiftHint = '';
+  let transmission = createTransmission();
+  let clutchPedal = false;
+  let soundEnabled = false;
+  let engineAudio;
   let stick = { x: 0, y: 0 };
   let stickPointer = null;
   let stickElement;
@@ -29,7 +33,7 @@
   const keys = new Set();
   $: nearby = nearestLandmark(car);
   $: nearbyScenic = DISCOVERIES.find(place => Math.hypot(place.x - car.x, place.z - car.z) < 18);
-  $: rpm = gearDrive(selectedGear, car.speed, 0, true).rpm;
+  $: automaticRpm = gearDrive(car.speed < 0 ? 'R' : Math.min(5, 1 + Math.floor(car.speed / 7)), car.speed, 0, true).rpm;
   $: distance = destination ? Math.round(Math.hypot(destination.x - car.x, destination.z - car.z)) : 0;
   $: stopped = paused || !!modal || !ready || !!error;
   $: cameraView = CAMERA_VIEWS[cameraIndex];
@@ -38,11 +42,21 @@
     if (!stopped) cameraIndex = (cameraIndex + 1) % CAMERA_VIEWS.length;
   }
 
-  function selectGear(requested) {
+  const clutchInput = () => clutchPedal || keys.has('shift');
+
+  function selectGear(requested, clutch = clutchInput()) {
     if (!manualTransmission || stopped) return;
-    const next = shiftGear(selectedGear, requested, car.speed);
-    shiftHint = next !== requested ? 'Brake to a stop before changing direction.' : '';
-    selectedGear = next;
+    transmission = selectTransmissionGear(transmission, requested, car.speed, clutch);
+  }
+  function restartEngine() {
+    if (!manualTransmission || stopped) return;
+    transmission = restartTransmission(transmission, car.speed, clutchInput());
+    if (soundEnabled) engineAudio?.start();
+  }
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    engineAudio?.setMuted(!soundEnabled);
+    if (soundEnabled) engineAudio?.start();
   }
 
   function releaseControls() {
@@ -51,10 +65,18 @@
     stickPointer = null;
     stick = { x: 0, y: 0 };
     braking = false;
+    clutchPedal = false;
+  }
+  function pauseDriving() {
+    // Leave an interrupted shift in neutral instead of releasing its clutch on resume.
+    if (manualTransmission && (clutchInput() || transmission.clutch)) {
+      transmission = { ...transmission, gear: 'N', clutch: false, coupling: 0, stallTime: 0, rpm: transmission.engine === 'running' ? 850 : 0 };
+    }
+    releaseControls();
+    engineAudio?.setMuted(true);
   }
   async function openPanel(kind) {
-    releaseControls();
-    car = { ...car, speed: 0 };
+    pauseDriving();
     if (kind === 'talk') {
       if (!nearby) return;
       encounter = nearby;
@@ -66,15 +88,14 @@
     if (!panel.open) panel.showModal();
   }
   function closePanel() {
-    panel.close();
+    if (panel?.open) panel.close();
     modal = '';
     releaseControls();
     canvas?.focus({ preventScroll: true });
   }
   function resetCar() {
     car = { ...SPAWN };
-    selectedGear = 1;
-    shiftHint = '';
+    transmission = createTransmission();
     paused = false;
     closePanel();
   }
@@ -82,19 +103,25 @@
     if (event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
     if (event.altKey || event.ctrlKey || event.metaKey || modal) return;
     const key = event.key.toLowerCase();
-    if (manualTransmission && /^[1-5r]$/.test(key)) {
+    const digit = /^(Digit|Numpad)[1-5]$/.test(event.code) ? Number(event.code.slice(-1)) : /^[1-5]$/.test(key) ? Number(key) : null;
+    if (manualTransmission && (digit || key === 'r' || key === 'n')) {
       event.preventDefault();
-      if (!event.repeat) selectGear(key === 'r' ? 'R' : Number(key));
+      if (!event.repeat) selectGear(digit || key.toUpperCase(), event.shiftKey || clutchInput());
+      if (soundEnabled) engineAudio?.start();
       return;
     }
+    if (manualTransmission && key === 'i' && !event.repeat) { event.preventDefault(); restartEngine(); return; }
     if (key === 'c' && !event.repeat) { event.preventDefault(); cycleCamera(); return; }
     if (key === 'm' && !event.repeat) { event.preventDefault(); openPanel('map'); return; }
     if ((key === 'escape' || key === 'p') && !event.repeat) { event.preventDefault(); openPanel('pause'); return; }
     if (key === 'e' && !event.repeat && nearby && !stopped) { event.preventDefault(); openPanel('talk'); return; }
-    if (!['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', ' '].includes(key)) return;
+    if (!['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', ' ', 'shift'].includes(key)) return;
     if (key === ' ' && /^(BUTTON|A)$/.test(event.target?.tagName)) return;
     event.preventDefault();
-    if (!stopped) keys.add(key);
+    if (!stopped) {
+      keys.add(key);
+      if (soundEnabled) engineAudio?.start();
+    }
   }
   function stickMove(event) {
     if (event.pointerId !== stickPointer) return;
@@ -123,11 +150,11 @@
     let frame;
     let disposed = false;
     let lastTime = 0;
+    engineAudio = createEngineAudio();
     const desktop = window.matchMedia('(min-width: 901px) and (pointer: fine)');
     const updateTransmission = () => {
       manualTransmission = desktop.matches;
-      selectedGear = 1;
-      shiftHint = '';
+      transmission = createTransmission();
       releaseControls();
       car = { ...car, speed: 0 };
     };
@@ -136,8 +163,7 @@
     const observer = new ResizeObserver(() => scene?.resize(canvas.clientWidth, canvas.clientHeight));
     observer.observe(canvas);
     function loseFocus() {
-      releaseControls();
-      car = { ...car, speed: 0 };
+      pauseDriving();
       if (ready && !modal) paused = true;
     }
     const visibility = () => { if (document.hidden) loseFocus(); };
@@ -161,14 +187,23 @@
             throttle: Number(keys.has('arrowup') || keys.has('w')) - (manualTransmission ? 0 : Number(keys.has('arrowdown') || keys.has('s'))),
             steering: Number(keys.has('arrowright') || keys.has('d')) - Number(keys.has('arrowleft') || keys.has('a'))
           };
+          const brake = braking || keys.has(' ') || (manualTransmission && (keys.has('arrowdown') || keys.has('s')));
+          if (manualTransmission) transmission = stepTransmission(transmission, { throttle: input.throttle, clutch: clutchInput(), brake }, car.speed, dt);
           car = stepWorldCar(car, {
             ...input,
-            ...(manualTransmission ? { gear: selectedGear } : {}),
-            brake: braking || keys.has(' ') || (manualTransmission && (keys.has('arrowdown') || keys.has('s')))
+            ...(manualTransmission ? {
+              gear: transmission.gear,
+              drivePower: transmission.engine === 'running' && !(transmission.event === 'grind' && transmission.eventTime > 0) ? transmission.coupling : 0,
+              clutch: transmission.clutch,
+              engineBrake: transmission.engine === 'damaged'
+            } : {}),
+            brake
           }, dt);
           const discovery = DISCOVERIES.find(place => !found.includes(place.id) && Math.hypot(place.x - car.x, place.z - car.z) < 18);
           if (discovery) found = [...found, discovery.id];
         }
+        engineAudio.setMuted(!soundEnabled);
+        engineAudio.update({ rpm: transmission.rpm, throttle: Number(keys.has('w') || keys.has('arrowup')), engine: transmission.engine, event: transmission.event, eventTime: transmission.eventTime, enabled: soundEnabled && manualTransmission, paused: stopped }, dt);
         if (!error) scene.render(car, stopped ? 0 : dt, cameraView.id);
         frame = requestAnimationFrame(animate);
       }
@@ -185,6 +220,7 @@
       document.removeEventListener('visibilitychange', visibility);
       canvas.removeEventListener('webglcontextlost', contextLost);
       scene?.destroy();
+      engineAudio?.destroy();
     };
   });
 </script>
@@ -195,8 +231,8 @@
   <meta name="theme-color" content="#233c2e" />
 </svelte:head>
 
-<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-transmission={manualTransmission ? 'manual' : 'automatic'} data-gear={manualTransmission ? selectedGear : 'auto'} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
-  <canvas bind:this={canvas} tabindex="0" aria-label={manualTransmission ? 'Mountain driving world. W or Up to accelerate; A, D or Left, Right to steer. 1 through 5 select gears, R selects reverse when stopped. S, Down or Space to brake. E to talk, M for map, C for camera, P to pause.' : 'Mountain driving world. Point the joystick where you want to go. Automatic transmission. Tap a nearby character to talk, or use the map and camera buttons.'}></canvas>
+<div class="world" data-ready={ready} data-paused={stopped} data-camera={cameraView.id} data-transmission={manualTransmission ? 'manual' : 'automatic'} data-gear={manualTransmission ? transmission.gear : 'auto'} data-engine={manualTransmission ? transmission.engine : 'running'} data-rpm={Math.round(manualTransmission ? transmission.rpm : automaticRpm)} data-clutch={manualTransmission && transmission.clutch} data-event={manualTransmission ? transmission.event : ''} data-x={car.x.toFixed(2)} data-z={car.z.toFixed(2)} data-speed={car.speed.toFixed(2)}>
+  <canvas bind:this={canvas} tabindex="0" aria-label={manualTransmission ? 'Mountain driving world. W or Up to accelerate; A, D or Left, Right to steer. Hold Shift for the clutch, then 1 through 5 for gears or R for reverse when stopped. N selects neutral, I restarts a stalled engine. S, Down or Space to brake. E to talk, M for map, C for camera, P to pause.' : 'Mountain driving world. Point the joystick where you want to go. Automatic transmission. Tap a nearby character to talk, or use the map and camera buttons.'}></canvas>
   <header class="world-header">
     <a class="portfolio-link" href="{base}/"><span aria-hidden="true">↖</span> Portfolio</a>
     <div class="world-title"><span>MINCHAN'S WORLD</span><strong>The scenic route.</strong></div>
@@ -234,18 +270,20 @@
     <div class="resume-card"><p>Taking a breather.</p><button on:click={() => { releaseControls(); paused = false; canvas.focus(); }}>Resume driving →</button></div>
   {/if}
 
-  <div class="driving-bar">
-    <div class="car-caption"><span class="car-dot"></span><div><strong>MX-5 · NB2</strong><span>British racing green. Factory stock.</span></div></div>
-    <div class="keyboard-help"><span><kbd>W A S D</kbd> / arrows · <kbd>S / ↓</kbd> Brake</span><span><kbd>1 – 5</kbd> Gears · <kbd>R</kbd> Reverse · <kbd>Space</kbd> Stop</span></div>
-    {#if manualTransmission}
-      <div class="transmission">
-        <label for="gear">5-SPEED MANUAL</label>
-        <div><select id="gear" aria-label="Gear" value={selectedGear} disabled={stopped} on:change={event => { selectGear(event.currentTarget.value === 'R' ? 'R' : Number(event.currentTarget.value)); event.currentTarget.value = String(selectedGear); canvas.focus(); }}>{#each GEARS as gear}<option value={gear}>{gear}</option>{/each}</select><span>{rpm.toLocaleString()}<small>RPM</small></span></div>
-      </div>
-    {/if}
-    <div class="speed"><strong>{Math.round(Math.abs(car.speed) * 3.6)}</strong><span>{car.speed < -.1 ? 'REVERSE' : 'KM/H'}</span></div>
-  </div>
-  {#if shiftHint}<p class="shift-hint" role="status">{shiftHint}</p>{/if}
+  {#if manualTransmission}
+    <aside class="driving-notes" aria-label="Manual driving controls">
+      <strong>MX-5 · NB2 <span>5-speed manual</span></strong>
+      <p><kbd>W / ↑</kbd> Gas · <kbd>A D / ← →</kbd> Steer · <kbd>S / ↓</kbd> Brake</p>
+      <p><kbd>Shift</kbd> Clutch · <kbd>1–5 / R</kbd> Gears · <kbd>N</kbd> Neutral</p>
+      <small>To pull away: hold Shift + 1, add gas, then release Shift.</small>
+      <button class="sound-toggle" on:click={toggleSound} aria-pressed={soundEnabled}>Engine sound: {soundEnabled ? 'On' : 'Off'}</button>
+    </aside>
+    <div class="instrument-dock">
+      <DrivingInstruments rpm={transmission.rpm} gear={transmission.gear} speed={car.speed} engine={transmission.engine} clutch={transmission.clutch} event={transmission.event} eventTime={transmission.eventTime} disabled={stopped} onGear={gear => { selectGear(gear); canvas.focus({ preventScroll: true }); }} onRestart={restartEngine} onRecover={resetCar} onClutch={pressed => clutchPedal = pressed} />
+    </div>
+  {:else}
+    <div class="automatic-gauge"><DrivingInstruments compact rpm={automaticRpm} speed={car.speed} /></div>
+  {/if}
 
   {#if nearby && ready && !stopped}
     <button class="talk-prompt" on:click={() => openPanel('talk')}><span class="talk-icon" aria-hidden="true">···</span><span><small>Someone has a story</small><strong>Talk to {nearby.name}</strong></span><kbd>E</kbd></button>
@@ -288,7 +326,7 @@
     {:else}
       <h2 id="panel-title">Enjoy the pause.</h2>
       <p>A small open world. No timer, no required route.</p>
-      <dl>{#if manualTransmission}<dt>Accelerate / steer</dt><dd>W / ↑ · A, D / ←, →</dd><dt>Manual gears</dt><dd>1, 2, 3, 4, 5 · R for reverse when stopped</dd><dt>Brake</dt><dd>S / ↓</dd>{:else}<dt>Drive</dt><dd>Point the joystick in your intended direction. Gears change automatically.</dd>{/if}<dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
+      <dl>{#if manualTransmission}<dt>Accelerate / steer</dt><dd>W / ↑ · A, D / ←, →</dd><dt>Clutch / gears</dt><dd>Hold Shift, then 1–5 or R. N selects neutral. Release Shift to engage.</dd><dt>Pull away</dt><dd>Hold the clutch, select 1, add gas, then release the clutch.</dd><dt>Engine</dt><dd>I restarts a stall with the clutch held or in neutral. A money shift requires returning to the garage.</dd><dt>Brake</dt><dd>S / ↓</dd>{:else}<dt>Drive</dt><dd>Point the joystick in your intended direction. Gears change automatically.</dd>{/if}<dt>Stop</dt><dd>Space / brake button</dd><dt>Talk</dt><dd>E / tap a nearby character’s prompt</dd><dt>Map</dt><dd>M / map button</dd><dt>Camera</dt><dd>C / camera button · Overhead, High chase, Chase</dd><dt>On your phone</dt><dd>Point the joystick where you want to go.</dd></dl>
       <button class="primary-link" on:click={() => { paused = false; closePanel(); }}>Resume driving →</button>
       <button class="topic-option" on:click={resetCar}>Return to the garage <span>↩</span></button>
       <a class="text-button" href="{base}/">Take the direct route to my portfolio ↗</a>
@@ -322,27 +360,18 @@
   .mini-map { position: absolute; top: 108px; right: 28px; width: 156px; padding: 7px; border: 1px solid #78856b; background: #faf8e8ed; border-radius: 5px; }
   .elevation { display: block; font-size: 9px; margin-top: 8px; color: #52654d; }
   .mini-map > span { display: flex; justify-content: space-between; padding: 5px 3px 0; font-size: 9px; font-weight: 600; }
-  .driving-bar { position: absolute; bottom: 25px; left: 30px; right: 30px; display: flex; gap: 32px; align-items: center; padding: 16px 19px; border: 1px solid #73816866; border-radius: 5px; background: #f8f5e8ed; pointer-events: none; }
-  .car-caption { display: flex; gap: 13px; align-items: center; }
-  .car-dot { width: 13px; height: 27px; border: 2px solid #dee2d1; border-radius: 5px; background: #174b33; box-shadow: 0 0 0 1px #52674b; }
-  .car-caption strong, .car-caption span, .keyboard-help span { display: block; }
-  .car-caption strong { font-size: 12px; letter-spacing: .03em; }
-  .car-caption div > span { font-size: 10px; opacity: .8; }
-  .keyboard-help { margin-left: auto; font-size: 10px; line-height: 1.9; }
-  kbd { font: 10px 'DM Sans', sans-serif; padding: 2px 5px; border: 1px solid #73816866; border-radius: 2px; }
-  .transmission { pointer-events: auto; padding-left: 22px; border-left: 1px solid #73816866; }
-  .transmission label { display: block; font-size: 8px; letter-spacing: .1em; margin-bottom: 4px; }
-  .transmission > div { display: flex; align-items: center; gap: 12px; }
-  .transmission select { min-width: 54px; min-height: 44px; border: 1px solid #73816866; border-radius: 3px; background: #faf8ec; color: #243e2f; font: 500 23px var(--font-display); padding: 2px 6px; }
-  .transmission span { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 40px; }
-  .transmission small { display: block; font-size: 8px; letter-spacing: .1em; }
-  .shift-hint { position: absolute; left: 50%; bottom: 105px; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 8px 14px; background: #faf8ec; border: 1px solid #8b5732; border-radius: 3px; font-size: 12px; text-align: center; }
+  .driving-notes { position: absolute; left: 28px; bottom: 25px; width: 340px; padding: 15px 17px; border: 1px solid #73816866; border-radius: 5px; background: #f8f5e8ed; }
+  .driving-notes > strong { display: block; font-size: 12px; margin-bottom: 9px; }
+  .driving-notes > strong > span { font-size: 10px; font-weight: 400; margin-left: 8px; }
+  .driving-notes p { font-size: 10px; margin: 6px 0; line-height: 1.8; }
+  .driving-notes small { display: block; max-width: 290px; font-size: 10px; line-height: 1.6; }
+  kbd { font: 10px 'DM Sans', sans-serif; padding: 2px 4px; border: 1px solid #73816866; border-radius: 2px; }
+  .sound-toggle { display: block; min-height: 34px; margin: 7px 0 -5px; padding: 3px 0; background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; font-size: 10px; }
+  .instrument-dock { position: absolute; right: 28px; bottom: 25px; }
+  .automatic-gauge { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); right: 18px; pointer-events: none; }
   .map-legend { color: #5c6b60; font-size: 10px; margin: 7px 0 0; }
   .scenic { border-radius: 3px; }
-  .speed { min-width: 55px; padding-left: 24px; border-left: 1px solid #73816866; }
-  .speed strong { display: block; font: 500 32px/1 var(--font-display); }
-  .speed span { font-size: 8px; letter-spacing: .1em; }
-  .talk-prompt { position: absolute; bottom: 133px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 17px; min-height: 72px; border: 1px solid #435e43; padding: 12px 18px; background: #faf8ecf5; border-radius: 4px; box-shadow: 0 5px 20px #233c2e1c; text-align: left; white-space: nowrap; }
+  .talk-prompt { position: absolute; bottom: 217px; left: 28px; display: flex; align-items: center; gap: 17px; min-height: 72px; border: 1px solid #435e43; padding: 12px 18px; background: #faf8ecf5; border-radius: 4px; box-shadow: 0 5px 20px #233c2e1c; text-align: left; white-space: nowrap; }
   .talk-prompt small, .talk-prompt strong { display: block; }
   .talk-prompt small { font-size: 10px; opacity: .8; }
   .talk-prompt strong { font-size: 14px; font-weight: 500; }
@@ -385,17 +414,14 @@
     .location-card { left: 18px; top: 89px; padding: 10px 13px; max-width: calc(100% - 147px); }
     .location-card .eyebrow { font-size: 7px; letter-spacing: .06em; }.location-card h1 { font-size: 24px; }.location-card p { font-size: 10px; }
     .mini-map { top: 89px; right: 16px; width: 105px; padding: 5px; }.mini-map > span { font-size: 8px; }
-    .driving-bar { bottom: calc(18px + env(safe-area-inset-bottom)); left: auto; right: 18px; padding: 0; background: none; border: 0; gap: 10px; }
-    .car-caption { display: none; }.keyboard-help { display: none; }.speed { border: 0; padding: 9px 14px; background: #f8f5e8df; border-radius: 3px; }
-    .speed strong { font-size: 27px; }
     .touch-controls { display: flex; position: absolute; inset: auto 20px calc(24px + env(safe-area-inset-bottom)); align-items: start; justify-content: space-between; pointer-events: none; }
     .joystick-wrap { text-align: center; }.joystick-wrap > span { display: block; font-size: 9px; margin-top: 10px; color: #243e2f; background: #f8f5e8df; padding: 3px 7px; border-radius: 2px; }
     .joystick { position: relative; width: 128px; height: 128px; padding: 0; border: 1px solid #38553a99; border-radius: 50%; background: #f4f1dc9e; box-shadow: inset 0 0 0 12px #faf8ea44; pointer-events: auto; touch-action: none; }
     .knob { position: absolute; top: 39px; left: 39px; width: 48px; height: 48px; border: 1px solid #274733; border-radius: 50%; background: #385b3ded; box-shadow: inset 0 0 0 5px #5d7c5277; }
     .axis-v, .axis-h { position: absolute; background: #48653b55; }.axis-v { top: 18px; bottom: 18px; width: 1px; left: 50%; }.axis-h { left: 18px; right: 18px; height: 1px; top: 50%; }
-    .brake { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 65px; height: 65px; margin-top: 10px; border: 1px solid #527147; border-radius: 50%; background: #f8f5e8df; pointer-events: auto; touch-action: none; font-size: 8px; letter-spacing: .09em; }.brake span { font-size: 22px; line-height: 1.3; }
+    .brake { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 65px; height: 65px; margin-top: -29px; border: 1px solid #527147; border-radius: 50%; background: #f8f5e8df; pointer-events: auto; touch-action: none; font-size: 8px; letter-spacing: .09em; }.brake span { font-size: 22px; line-height: 1.3; }
     .brake:active { background: #d6dec8; }
-    .talk-prompt { bottom: calc(204px + env(safe-area-inset-bottom)); min-height: 62px; padding: 8px 13px; gap: 12px; }.talk-prompt strong { font-size: 13px; }.talk-prompt kbd { display: none; }
+    .talk-prompt { left: 50%; transform: translateX(-50%); bottom: calc(204px + env(safe-area-inset-bottom)); min-height: 62px; padding: 8px 13px; gap: 12px; }.talk-prompt strong { font-size: 13px; }.talk-prompt kbd { display: none; }
     dialog { inset: auto 16px max(16px, env(safe-area-inset-bottom)) auto; padding: 18px 22px; max-height: calc(100dvh - 32px); }dialog h2 { font-size: 38px; }
   }
   @media (max-width: 700px) { .world-title { display: none; } }
@@ -409,6 +435,7 @@
   @media (max-height: 520px) {
     .location-card { display: none; }.mini-map { width: 89px; }.mini-map > span { display: none; }.talk-prompt { bottom: 28px; }
     .joystick { width: 112px; height: 112px; }.knob { top: 31px; left: 31px; }.joystick-wrap > span { display: none; }
-    .touch-controls { bottom: 18px; }.driving-bar { bottom: 15px; }.brake { margin-top: -16px; }.speed { margin-top: 70px; }
+    .touch-controls { bottom: 18px; }.brake { margin-top: -70px; }.automatic-gauge { bottom: 15px; }
   }
+  @media (min-width: 901px) and (pointer: fine) and (max-height: 520px) { .talk-prompt { bottom: 218px; } }
 </style>

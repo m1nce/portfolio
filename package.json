@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "check": "vite build && node src/lib/transmission.test.js && node src/lib/worldMap.test.js && node src/lib/world.test.js && node src/lib/worldCamera.test.js && node src/lib/nb2Model.test.js && node src/lib/build.test.js",
+    "check": "vite build && node src/lib/transmission.test.js && node src/lib/engineAudio.test.js && node src/lib/worldMap.test.js && node src/lib/world.test.js && node src/lib/worldCamera.test.js && node src/lib/nb2Model.test.js && node src/lib/build.test.js",
     "preview": "vite preview"
   },
   "devDependencies": {
