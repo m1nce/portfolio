@@ -352,8 +352,9 @@
     .talk-prompt { bottom: calc(204px + env(safe-area-inset-bottom)); min-height: 62px; padding: 8px 13px; gap: 12px; }.talk-prompt strong { font-size: 13px; }.talk-prompt kbd { display: none; }
     dialog { inset: auto 16px max(16px, env(safe-area-inset-bottom)) auto; padding: 18px 22px; max-height: calc(100dvh - 32px); }dialog h2 { font-size: 38px; }
   }
+  @media (max-width: 700px) { .world-title { display: none; } }
   @media (max-width: 560px) {
-    .world-title { display: none; }.location-card { top: 84px; max-width: calc(100% - 140px); }.mini-map { top: 84px; }
+    .location-card { top: 84px; max-width: calc(100% - 140px); }.mini-map { top: 84px; }
     .location-card h1 { font-size: 23px; }.location-card .eyebrow { display: none; }.location-card p { line-height: 1.6; }
     .button-word { display: none; }.header-actions { gap: 6px; }
     .map-dialog h2 { font-size: 34px; }.map-dialog > p { font-size: 12px; }
