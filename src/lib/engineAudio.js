@@ -1,7 +1,7 @@
 const clamp = (value, low, high) => Math.max(low, Math.min(high, Number.isFinite(value) ? value : low));
-const recordings = ['mx5-idle.wav', 'mx5-low.wav', 'mx5-high.wav', 'mx5-start.wav', 'mx5-stop.wav'];
+const recordings = ['mx5-idle.wav', 'mx5-high.wav', 'mx5-start.wav', 'mx5-stop.wav'];
 // Approximate firing-rate references for the adapted recording bands.
-const referenceRpm = [1250, 2100, 5100];
+const referenceRpm = [1250, 4360];
 
 export function createEngineAudio(base = '') {
   let context, master, filter, buffers, loading;
@@ -76,7 +76,7 @@ export function createEngineAudio(base = '') {
             filter.type = 'lowpass';
             filter.Q.value = 0.5;
             filter.connect(master);
-            loops = samples.slice(0, 3).map(buffer => {
+            loops = samples.slice(0, 2).map(buffer => {
               const source = remember(audioContext.createBufferSource());
               const gain = remember(audioContext.createGain());
               source.buffer = buffer;
@@ -108,19 +108,18 @@ export function createEngineAudio(base = '') {
       previousEngine = engine;
       const target = (param, value, time = 0.08) => param.setTargetAtTime(value, context.currentTime, time);
       const revs = clamp(rpm, 0, 7600), load = clamp(throttle, 0, 1);
-      // ponytail: three adapted recording bands; use a measured NB2 dyno set for exact stock timbre.
-      const lowBlend = clamp((revs - 1000) / 1400, 0, 1);
-      const highBlend = clamp((revs - 2500) / 2500, 0, 1);
-      const weights = [Math.cos(lowBlend * Math.PI / 2), Math.sin(lowBlend * Math.PI / 2) * Math.cos(highBlend * Math.PI / 2), Math.sin(highBlend * Math.PI / 2)];
+      // ponytail: stock 1.6 NB revs approximate the 1.8 NB2; replace with matched RPM bands when available.
+      const blend = clamp((revs - 1300) / 1700, 0, 1);
+      const weights = [Math.cos(blend * Math.PI / 2), Math.sin(blend * Math.PI / 2)];
       loops.forEach(({ source, gain }, index) => {
-        target(source.playbackRate, clamp(revs / referenceRpm[index], 0.5, 4), 0.065);
+        target(source.playbackRate, clamp(revs / referenceRpm[index], 0.25, 4), 0.12);
         const volume = (0.38 + load * 0.22) * weights[index];
         target(gain.gain, engine === 'running' ? volume : 0, engine === 'stalled' ? 0.025 : 0.08);
       });
       target(filter.frequency, 950 + revs * 0.3 + load * 1400);
       target(master.gain, 0.42, 0.03);
-      if (changed && engine === 'starting') oneShot(buffers[3]);
-      if (changed && engine === 'stalled') oneShot(buffers[4]);
+      if (changed && engine === 'starting') oneShot(buffers[2]);
+      if (changed && engine === 'stalled') oneShot(buffers[3]);
     },
 
     setMuted(value) {
