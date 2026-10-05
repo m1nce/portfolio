@@ -4,7 +4,7 @@
 
 <svelte:head>
   <title>Minchan Kim — Data science & human–computer interaction</title>
-  <meta name="description" content="I'm Minchan, a Data Science graduate student at UC San Diego studying how people work with AI. Research, teaching, things I've built, and a green MX-5." />
+  <meta name="description" content="Minchan Kim is a Data Science master's student at UC San Diego. Research, teaching, projects, and experience." />
   <meta name="theme-color" content="#e6e9e5" />
 </svelte:head>
 
@@ -13,21 +13,21 @@
     <div class="intro-inner">
       <div class="introduction">
         <h1 id="intro-title" tabindex="-1">Hi, I’m<br /> Minchan.</h1>
-        <p class="lead">I’m a data science grad student at UC San Diego, studying how people work with AI.</p>
-        <p class="intro-note">I build things for learning, work with data, and spend a fair amount of time thinking about cars.</p>
-        <a class="work-link" href="#work">A few things I’ve worked on <span aria-hidden="true">↓</span></a>
+        <p class="lead">I’m a Data Science master’s student at UC San Diego.</p>
+        <p class="intro-note">My research interests are human–computer interaction and machine learning.</p>
+        <a class="work-link" href="#work">View my work <span aria-hidden="true">↓</span></a>
       </div>
       <figure class="garage">
-        <a class="car-link" href="{base}/world/" aria-label="Drive the green MX-5 in my mountain world">
+        <a class="car-link" href="{base}/world/" aria-label="Play the MX-5 driving game">
           <img class="day-car" src="{base}/img/nb2-garage.jpg" alt="The game's stock British green NB2 Mazda MX-5, with tan seats and silver wheels, viewed from the front quarter." width="1280" height="720" fetchpriority="high" />
           <img class="night-car" src="{base}/img/nb2-garage-night.jpg" alt="The same green NB2 MX-5 against a dark garage backdrop." width="1280" height="720" />
         </a>
         <figcaption>
           <div class="car-caption">
-            <div><span class="car-name">Mazda MX-5</span><span class="car-detail">NB2. British racing green. Stock.</span></div>
-            <a class="drive-link" href="{base}/world/">Take it for a drive <span aria-hidden="true">↗</span></a>
+            <div><span class="car-name">Mazda MX-5</span><span class="car-detail">Stock NB2 in British racing green</span></div>
+            <a class="drive-link" href="{base}/world/">Drive the MX-5 <span aria-hidden="true">↗</span></a>
           </div>
-          <p class="drive-note">A little browser game I’m building. Keyboard or touch.</p>
+          <p class="drive-note">Play with a keyboard or touch controls.</p>
         </figcaption>
       </figure>
     </div>
@@ -36,7 +36,7 @@
   <div class="page-content">
     <section class="work-section" id="work" aria-labelledby="work-title">
       <div class="section-heading">
-        <h2 id="work-title" tabindex="-1">Work &amp; ongoing questions</h2>
+        <h2 id="work-title" tabindex="-1">Work</h2>
         <a href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">GitHub</a>
       </div>
       <div class="work-layout">
@@ -44,23 +44,23 @@
           <a class="project-image" href="https://dsc-courses.github.io/bpd-reference/" target="_blank" rel="noopener noreferrer" aria-label="Open the BabyPandas documentation">
             <img src="{base}/img/babypandas-docs.jpg" alt="The live BabyPandas documentation, showing its topic navigation and a sample DataFrame." width="1280" height="720" loading="lazy" />
           </a>
-          <p class="context">For students in UC San Diego’s DSC 10</p>
+          <p class="context">UCSD DSC 10</p>
           <h3>BabyPandas documentation</h3>
-          <p>I built a reference site for students learning data science with babypandas. It brings the library’s methods and examples into one place to use alongside their coursework.</p>
+          <p>I built the babypandas documentation site for UCSD’s introductory data science course, DSC 10.</p>
           <div class="project-links">
             <a href="https://dsc-courses.github.io/bpd-reference/" target="_blank" rel="noopener noreferrer">Read the docs</a>
             <a href="https://github.com/dsc-courses/bpd-reference" target="_blank" rel="noopener noreferrer">View the source</a>
           </div>
         </article>
         <article class="research">
-          <p class="context">Research at the dstl lab</p>
-          <h3>Making sense of conversations with AI.</h3>
+          <p class="context">dstl lab, UC San Diego</p>
+          <h3>Labeling AI conversations</h3>
           <p>My research focuses on labeling conversations with generative AI in educational settings.</p>
-          <p>I’m interested in annotation interfaces: the tools people use to interpret, label, and work with that data.</p>
-          <a href="{base}/about/">More about my background</a>
+          <p>I’m interested in the interfaces people use to review and label those conversations.</p>
+          <a href="{base}/about/">Research &amp; experience</a>
           <div class="teaching-note">
-            <h4>On the teaching side</h4>
-            <p>I’ve also held office hours, written exam and quiz questions, and worked on assignments and automated grading for introductory data science.</p>
+            <h4>Teaching</h4>
+            <p>As a TA for DSC 10, I held office hours, wrote exam and quiz questions, and tested assignments. I also worked on automated grading as an instructional assistant.</p>
           </div>
         </article>
       </div>
@@ -68,13 +68,13 @@
 
     <section class="about-section" id="about" aria-labelledby="about-title">
       <div class="about-intro">
-        <h2 id="about-title" tabindex="-1">A bit more about me</h2>
-        <p>I earned my B.S. in Data Science at UC San Diego and stayed for the M.S., with a focus on human–computer interaction and machine learning.</p>
-        <p>Outside of that: basketball, Formula 1, lifting, and cars. The green Miata on this page is my starting point for a world you can explore.</p>
-        <a href="{base}/about/">Full background &amp; experience</a>
+        <h2 id="about-title" tabindex="-1">About</h2>
+        <p>I finished my B.S. in Data Science at UCSD in 2025 and stayed for my master’s.</p>
+        <p>Outside of school, I’m into basketball, Formula 1, lifting, and cars.</p>
+        <a href="{base}/about/">More about me</a>
       </div>
       <div class="experience">
-        <h3>Some places I’ve worked</h3>
+        <h3>Experience</h3>
         <dl>
           <div><dt>Southern California Edison</dt><dd>Electrical-load forecasting</dd></div>
           <div><dt>EY</dt><dd>Document processing for LLM integration</dd></div>
@@ -85,7 +85,7 @@
 
     <footer id="contact" aria-labelledby="contact-title">
       <div>
-        <h2 id="contact-title" tabindex="-1">Keep in touch.</h2>
+        <h2 id="contact-title" tabindex="-1">Contact</h2>
         <a class="email" href="mailto:mcskim04@gmail.com">mcskim04@gmail.com</a>
       </div>
       <div class="footer-links">
