@@ -1,150 +1,204 @@
 <script>
   import { base } from '$app/paths';
-  import ProjectCard from '$lib/components/ProjectCard.svelte';
-  import { projects } from '$lib/data/projects.js';
 </script>
 
 <svelte:head>
-  <title>Minchan Kim — HCI, machine learning & the scenic route</title>
-  <meta name="description" content="Minchan Kim is a Data Science graduate student at UC San Diego exploring human–computer interaction and machine learning. Browse his work or explore his driving world." />
-  <meta name="theme-color" content="#233c2e" />
+  <title>Minchan Kim — Data science & human–computer interaction</title>
+  <meta name="description" content="I'm Minchan, a Data Science graduate student at UC San Diego studying how people work with AI. Research, teaching, things I've built, and a green MX-5." />
+  <meta name="theme-color" content="#e6e9e5" />
 </svelte:head>
 
-<div class="portfolio">
+<div class="homepage">
   <section class="intro" id="home" aria-labelledby="intro-title">
-    <div>
-      <p class="role">HCI &amp; machine learning</p>
-      <h1 id="intro-title" tabindex="-1">Minchan Kim<span>.</span></h1>
-    </div>
-    <div class="intro-copy">
-      <p>I explore how people and AI can work better together.</p>
-      <p class="muted">Data Science graduate student at UC San Diego.<br />Usually taking the scenic route.</p>
-      <a class="text-link" href="#work">Browse my work <span aria-hidden="true">↓</span></a>
+    <div class="intro-inner">
+      <div class="introduction">
+        <h1 id="intro-title" tabindex="-1">Hi, I’m<br /> Minchan.</h1>
+        <p class="lead">I’m a data science grad student at UC San Diego, studying how people work with AI.</p>
+        <p class="intro-note">I build things for learning, work with data, and spend a fair amount of time thinking about cars.</p>
+        <a class="work-link" href="#work">A few things I’ve worked on <span aria-hidden="true">↓</span></a>
+      </div>
+      <figure class="garage">
+        <a class="car-link" href="{base}/world/" aria-label="Drive the green MX-5 in my mountain world">
+          <img class="day-car" src="{base}/img/nb2-garage.jpg" alt="The game's stock British green NB2 Mazda MX-5, with tan seats and silver wheels, viewed from the front quarter." width="1280" height="720" fetchpriority="high" />
+          <img class="night-car" src="{base}/img/nb2-garage-night.jpg" alt="The same green NB2 MX-5 against a dark garage backdrop." width="1280" height="720" />
+        </a>
+        <figcaption>
+          <div class="car-caption">
+            <div><span class="car-name">Mazda MX-5</span><span class="car-detail">NB2. British racing green. Stock.</span></div>
+            <a class="drive-link" href="{base}/world/">Take it for a drive <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="drive-note">A little browser game I’m building. Keyboard or touch.</p>
+        </figcaption>
+      </figure>
     </div>
   </section>
 
-  <a class="world-gateway" href="{base}/world/" aria-labelledby="world-title" aria-describedby="world-description">
-    <div class="valley-view">
-      <img src="{base}/img/valley-concept.png" alt="A British green MX-5 overlooking a sunlit mountain valley, with winding roads connecting a garage, village, and field station." width="1536" height="1024" fetchpriority="high" />
-      <span class="world-caption">Southern California, reimagined</span>
-    </div>
-    <div class="gateway-copy">
+  <div class="page-content">
+    <section class="work-section" id="work" aria-labelledby="work-title">
+      <div class="section-heading">
+        <h2 id="work-title" tabindex="-1">Work &amp; ongoing questions</h2>
+        <a href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+      <div class="work-layout">
+        <article class="project">
+          <a class="project-image" href="https://dsc-courses.github.io/bpd-reference/" target="_blank" rel="noopener noreferrer" aria-label="Open the BabyPandas documentation">
+            <img src="{base}/img/babypandas-docs.jpg" alt="The live BabyPandas documentation, showing its topic navigation and a sample DataFrame." width="1280" height="720" loading="lazy" />
+          </a>
+          <p class="context">For students in UC San Diego’s DSC 10</p>
+          <h3>BabyPandas documentation</h3>
+          <p>I built a reference site for students learning data science with babypandas. It brings the library’s methods and examples into one place to use alongside their coursework.</p>
+          <div class="project-links">
+            <a href="https://dsc-courses.github.io/bpd-reference/" target="_blank" rel="noopener noreferrer">Read the docs</a>
+            <a href="https://github.com/dsc-courses/bpd-reference" target="_blank" rel="noopener noreferrer">View the source</a>
+          </div>
+        </article>
+        <article class="research">
+          <p class="context">Research at the dstl lab</p>
+          <h3>Making sense of conversations with AI.</h3>
+          <p>My research focuses on labeling conversations with generative AI in educational settings.</p>
+          <p>I’m interested in annotation interfaces: the tools people use to interpret, label, and work with that data.</p>
+          <a href="{base}/about/">More about my background</a>
+          <div class="teaching-note">
+            <h4>On the teaching side</h4>
+            <p>I’ve also held office hours, written exam and quiz questions, and worked on assignments and automated grading for introductory data science.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="about-section" id="about" aria-labelledby="about-title">
+      <div class="about-intro">
+        <h2 id="about-title" tabindex="-1">A bit more about me</h2>
+        <p>I earned my B.S. in Data Science at UC San Diego and stayed for the M.S., with a focus on human–computer interaction and machine learning.</p>
+        <p>Outside of that: basketball, Formula 1, lifting, and cars. The green Miata on this page is my starting point for a world you can explore.</p>
+        <a href="{base}/about/">Full background &amp; experience</a>
+      </div>
+      <div class="experience">
+        <h3>Some places I’ve worked</h3>
+        <dl>
+          <div><dt>Southern California Edison</dt><dd>Electrical-load forecasting</dd></div>
+          <div><dt>EY</dt><dd>Document processing for LLM integration</dd></div>
+          <div><dt>UC San Diego</dt><dd>Business intelligence, SQL, and dashboards</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <footer id="contact" aria-labelledby="contact-title">
       <div>
-        <h2 id="world-title">Take the scenic route.</h2>
-        <p id="world-description">Drive freely. Meet a few familiar faces. Get to know me along the way.</p>
+        <h2 id="contact-title" tabindex="-1">Keep in touch.</h2>
+        <a class="email" href="mailto:mcskim04@gmail.com">mcskim04@gmail.com</a>
       </div>
-      <span class="enter-world">Explore my world <span aria-hidden="true">↗</span></span>
-    </div>
-  </a>
-  <p class="prototype-note">A playable open-world prototype. Keyboard or touch controls. Concept artwork shown above.</p>
-
-  <section class="work-section" id="work" aria-labelledby="work-title">
-    <div class="section-heading">
-      <h2 id="work-title" tabindex="-1">Selected work</h2>
-      <a class="text-link" href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">More on GitHub <span aria-hidden="true">↗</span></a>
-    </div>
-    <div class="projects-grid">
-      {#each projects as project}
-        <ProjectCard {...project} description={project.title === 'Portfolio Site' ? 'An interactive portfolio with a freely drivable mountain world, pixel-art characters, and a conventional place to browse my work.' : project.description} />
-      {/each}
-    </div>
-  </section>
-
-  <section class="about-section" id="about" aria-labelledby="about-title">
-    <h2 id="about-title" tabindex="-1">A little background.</h2>
-    <div class="about-copy">
-      <p>I study Data Science at UC San Diego, with a focus on human–computer interaction and machine learning.</p>
-      <p>I'm especially interested in annotation interfaces: places where domain experts and AI models collaborate to make data more reliable.</p>
-      <p class="muted">Away from the screen: basketball, Formula 1, lifting, and an appreciation for a good driver's car.</p>
-      <a class="text-link" href="{base}/about/">Background &amp; experience <span aria-hidden="true">↗</span></a>
-    </div>
-  </section>
-
-  <section class="contact-section" id="contact" aria-labelledby="contact-title">
-    <div>
-      <h2 id="contact-title" tabindex="-1">Let's talk.</h2>
-      <p>About research, something you're building,<br />or your favorite stretch of road.</p>
-    </div>
-    <div class="contact-links">
-      <a class="email-link" href="mailto:mcskim04@gmail.com">mcskim04@gmail.com <span aria-hidden="true">↗</span></a>
-      <div class="social-links">
-        <a href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
-        <a href="https://linkedin.com/in/minchankim" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
-        <a href="{base}/terminal/">Terminal</a>
+      <div class="footer-links">
+        <a href="https://github.com/m1nce" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://linkedin.com/in/minchankim" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="#home">Back to top ↑</a>
       </div>
-    </div>
-  </section>
-  <footer><span>Minchan Kim</span><a href="#home">Back to top ↑</a></footer>
+    </footer>
+  </div>
 </div>
 
 <style>
-  .portfolio { max-width: 1380px; padding: 148px 5.5vw 24px; margin-inline: auto; }
-  .intro { display: grid; grid-template-columns: 1.15fr 1fr; align-items: end; gap: 3rem; margin-bottom: 3rem; }
-  .role { color: var(--text-muted); font-size: .85rem; margin-bottom: 1rem; }
-  h1 { font: 500 clamp(4.5rem, 8.5vw, 8.25rem)/.9 var(--font-display); letter-spacing: -.025em; margin: 0; }
-  h1 > span { color: #9a884e; }
-  .intro-copy { max-width: 430px; padding-bottom: .1rem; }
-  .intro-copy > p:first-child { font-size: clamp(1.1rem, 1.9vw, 1.5rem); line-height: 1.4; letter-spacing: -.015em; margin-bottom: .8rem; }
-  .intro-copy .muted { margin-bottom: .45rem; font-size: .85rem; }
-  .muted, .prototype-note { color: var(--text-muted); }
-  .text-link { display: inline-flex; align-items: center; justify-content: space-between; min-height: 44px; gap: 1.25rem; font-size: .85rem; font-weight: 550; text-decoration: none; border-bottom: 1px solid var(--border); }
-  .text-link:hover { border-color: currentColor; }
-  .world-gateway { display: block; text-decoration: none; background: #233c2e; color: #f4f3ec; }
-  .valley-view { position: relative; height: clamp(230px, 30vw, 370px); overflow: hidden; }
-  .valley-view img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 64%; }
-  .world-caption { position: absolute; top: 1rem; left: 1rem; padding: .35rem .65rem; color: #233c2e; background: #f4f3ec; font-size: .7rem; }
-  .gateway-copy { display: flex; justify-content: space-between; align-items: center; gap: 2rem; padding: 1.4rem 1.75rem; }
-  .gateway-copy h2 { font: 500 2.2rem/1.1 var(--font-display); margin: 0 0 .35rem; }
-  .gateway-copy p { font-size: .8rem; color: #d3dacc; margin: 0; }
-  .enter-world { display: inline-flex; align-items: center; justify-content: space-between; gap: 1.75rem; min-height: 48px; padding: .6rem 1rem; border: 1px solid #bac7b4; font-size: .85rem; white-space: nowrap; }
-  .world-gateway:hover .enter-world { background: #f4f3ec; color: #233c2e; }
-  .prototype-note { margin: .65rem 0 0; font-size: .7rem; }
-  .work-section { margin-block: 5.5rem; }
-  .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
-  section > h2, .section-heading > h2, .contact-section h2 { font: 500 clamp(2.75rem, 4vw, 4rem)/1 var(--font-display); letter-spacing: -.015em; margin: 0; }
-  .projects-grid { gap: 3rem; margin: 2rem 0 0; }
-  .projects-grid :global(.project-image img) { aspect-ratio: 2.5; }
-  .projects-grid :global(.card-body h3) { font-size: 1.1rem; }
-  .projects-grid :global(.card-body p) { max-width: 52ch; }
-  .about-section { display: grid; grid-template-columns: 1fr 1.2fr; gap: 4rem; padding-block: 3rem 4rem; border-top: 1px solid var(--border); }
-  .about-copy { max-width: 560px; }
-  .about-copy p { margin-bottom: 1.2rem; font-size: .95rem; line-height: 1.8; }
-  .contact-section { display: flex; justify-content: space-between; gap: 3rem; padding-block: 3rem 4rem; border-top: 1px solid var(--border); }
-  .contact-section h2 { font-size: clamp(3.25rem, 5vw, 5rem); }
-  .contact-section p { margin: 1rem 0 0; font-size: .9rem; color: var(--text-muted); }
-  .contact-links { padding-top: .25rem; }
-  .email-link { display: flex; justify-content: space-between; align-items: center; min-height: 48px; gap: 2rem; font-size: clamp(1rem, 1.7vw, 1.4rem); text-decoration: none; border-bottom: 1px solid var(--border); }
-  .email-link:hover { border-color: currentColor; }
-  .social-links { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: .9rem; font-size: .8rem; }
-  .social-links a, footer a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
-  .social-links a:hover, footer a:hover { text-decoration: underline; }
-  footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); color: var(--text-muted); font-size: .75rem; padding-top: 1rem; }
-  @media (max-width: 760px) {
-    .portfolio { padding: 112px 20px 20px; }
-    .intro { grid-template-columns: 1fr; gap: 1.65rem; margin-bottom: 2rem; }
-    h1 { font-size: clamp(4.5rem, 15vw, 6.5rem); }
-    .role { margin-bottom: .8rem; }
-    .intro-copy { max-width: 460px; }
-    .intro-copy > p:first-child { max-width: 29ch; font-size: 1.25rem; }
-    .valley-view { height: 240px; }
-    .valley-view img { object-position: 50% 70%; }
-    .world-caption { top: .65rem; left: .65rem; font-size: .65rem; }
-    .gateway-copy { display: block; padding: 1.25rem; }
-    .gateway-copy h2 { font-size: 2rem; }
-    .gateway-copy p { max-width: 40ch; font-size: .8rem; line-height: 1.6; }
-    .enter-world { margin-top: 1rem; width: 100%; }
-    .prototype-note { line-height: 1.6; }
-    .work-section { margin-block: 3.5rem; }
-    .section-heading { align-items: start; flex-wrap: wrap; gap: .5rem 1rem; }
-    .section-heading h2 { font-size: 2.75rem; }
-    .projects-grid { grid-template-columns: 1fr; gap: 2rem; margin-top: 1.25rem; }
-    .about-section { grid-template-columns: 1fr; gap: 1.5rem; padding-block: 2.5rem 3rem; }
-    .contact-section { display: block; padding-block: 2.5rem 3rem; }
-    .contact-links { margin-top: 1.5rem; }
-    .email-link { max-width: 430px; gap: .8rem; font-size: clamp(.95rem, 4vw, 1.2rem); }
-    .social-links { margin-top: .65rem; }
+  :global(html:has(.homepage)) {
+    --bg: #f8f9f6; --bg-elevated: #ffffff; --text: #263c32; --text-muted: #58645d;
+    --accent: #23553e; --border: #cbd2c9;
   }
-  @media (min-width: 761px) and (max-height: 500px) {
-    .portfolio { padding-top: 112px; }
+  :global(html[data-theme='dark']:has(.homepage)) {
+    --bg: #1c2923; --bg-elevated: #25362d; --text: #e6ece5; --text-muted: #b0beb2;
+    --accent: #c0d7bb; --border: #435347;
+  }
+  .intro { --garage-bg: #e6e9e5; background: var(--garage-bg); color: var(--text); }
+  :global(html[data-theme='dark']) .intro { --garage-bg: #24362c; }
+  .intro-inner { max-width: 1440px; margin-inline: auto; padding: 44px 5.5vw 52px; display: grid; grid-template-columns: .85fr 1.35fr; gap: 32px; align-items: center; }
+  .introduction { max-width: 430px; padding-block: 12px; }
+  h1 { font-size: clamp(3.5rem, 5.3vw, 5.25rem); font-weight: 500; letter-spacing: -.065em; line-height: 1.02; margin: 0 0 28px; }
+  .lead { font-size: clamp(1.12rem, 1.65vw, 1.4rem); line-height: 1.5; letter-spacing: -.02em; max-width: 31ch; margin-bottom: 20px; }
+  .intro-note { max-width: 36ch; font-size: .95rem; line-height: 1.65; color: var(--text-muted); margin-bottom: 20px; }
+  a { text-decoration-thickness: 1px; text-underline-offset: 5px; }
+  a:hover { text-decoration-thickness: 2px; }
+  .work-link { display: inline-flex; align-items: center; gap: 20px; min-height: 44px; font-size: .9rem; }
+  .garage { margin: 0; min-width: 0; }
+  .car-link { display: block; }
+  .car-link img { display: block; width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; }
+  .car-link .night-car { display: none; }
+  :global(html[data-theme='dark']) .car-link .day-car { display: none; }
+  :global(html[data-theme='dark']) .car-link .night-car { display: block; }
+  .car-caption { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 8px 16px 0; }
+  .car-name { display: block; font-size: 1.35rem; font-weight: 550; letter-spacing: -.035em; }
+  .car-detail { display: block; color: var(--text-muted); font-size: .78rem; margin-top: 2px; }
+  .drive-link { display: inline-flex; gap: 16px; align-items: center; justify-content: center; min-height: 48px; padding: 10px 18px; background: #254b37; color: #f3f6ef; border-radius: 3px; font-size: .9rem; text-decoration: none; white-space: nowrap; }
+  .drive-link:hover { background: #173723; }
+  :global(html[data-theme='dark']) .drive-link { background: #d4e2ce; color: #233b2b; }
+  :global(html[data-theme='dark']) .drive-link:hover { background: #e7efdf; }
+  .drive-note { padding: 0 16px; margin: 14px 0 0; font-size: .75rem; color: var(--text-muted); }
+  .page-content { max-width: 1440px; margin-inline: auto; padding: 0 5.5vw; }
+  .work-section { padding-block: 72px 80px; }
+  .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 36px; }
+  h2 { font-size: clamp(1.5rem, 2.4vw, 2rem); font-weight: 500; letter-spacing: -.045em; line-height: 1.2; margin: 0; }
+  .section-heading > a { font-size: .9rem; min-height: 44px; display: inline-flex; align-items: center; }
+  .work-layout { display: grid; grid-template-columns: 1.35fr .85fr; gap: clamp(40px, 6vw, 88px); align-items: start; }
+  .project-image { display: block; background: #e8ece8; padding: 24px; border-radius: 4px; }
+  .project-image img { display: block; width: 100%; height: auto; border: 1px solid #d6dcd7; }
+  .context { font-size: .8rem; color: var(--text-muted); margin: 24px 0 10px; }
+  h3 { font-size: clamp(1.35rem, 2vw, 1.65rem); letter-spacing: -.035em; line-height: 1.25; font-weight: 550; margin: 0 0 16px; }
+  .project > p:not(.context), .research > p:not(.context), .about-intro p { font-size: .95rem; line-height: 1.75; max-width: 60ch; margin-bottom: 16px; }
+  .project-links { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+  .project-links a, .research > a, .about-intro > a { font-size: .9rem; display: inline-flex; align-items: center; min-height: 44px; }
+  .research { padding-top: 8px; }
+  .research .context { margin-top: 0; }
+  .research h3 { font-size: clamp(1.7rem, 2.6vw, 2.25rem); max-width: 18ch; margin-block: 16px 24px; }
+  .teaching-note { margin-top: 32px; padding-left: 20px; border-left: 2px solid var(--border); }
+  h4 { font-size: .9rem; font-weight: 550; margin: 0 0 8px; }
+  .teaching-note p { font-size: .85rem; color: var(--text-muted); line-height: 1.75; margin: 0; }
+  .about-section { display: grid; grid-template-columns: 1.35fr .85fr; gap: clamp(40px, 6vw, 88px); padding-block: 56px 64px; border-top: 1px solid var(--border); }
+  .about-intro h2 { margin-bottom: 24px; }
+  .experience { padding-top: 5px; }
+  .experience h3 { font-size: 1rem; letter-spacing: -.015em; margin-bottom: 24px; }
+  dl { margin: 0; }
+  dl > div { margin-bottom: 24px; }
+  dt { font-size: .95rem; font-weight: 550; }
+  dd { margin: 3px 0 0; font-size: .85rem; color: var(--text-muted); }
+  footer { border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 32px; padding-block: 40px 48px; }
+  footer h2 { font-size: 1rem; letter-spacing: 0; margin-bottom: 8px; }
+  .email { display: inline-flex; align-items: center; min-height: 44px; font-size: clamp(1.15rem, 2vw, 1.5rem); letter-spacing: -.03em; }
+  .footer-links { display: flex; flex-wrap: wrap; gap: 24px; font-size: .85rem; }
+  .footer-links a { display: inline-flex; align-items: center; min-height: 44px; }
+  @media (max-width: 900px) {
+    .intro-inner { gap: 8px; grid-template-columns: 1fr 1.15fr; padding-top: 32px; }
+    h1 { font-size: 3.5rem; }
+    .car-caption { display: block; }
+    .drive-link { margin-top: 16px; }
+    .work-layout, .about-section { gap: 36px; grid-template-columns: 1.15fr 1fr; }
+    .project-image { padding: 14px; }
+  }
+  @media (max-width: 640px) {
+    .intro-inner { display: block; padding: 28px 24px 32px; }
+    .introduction { max-width: 100%; padding: 0; }
+    h1 { font-size: clamp(3.25rem, 12vw, 4rem); margin-bottom: 24px; }
+    h1 br { display: none; }
+    .lead { max-width: 33ch; font-size: 1.15rem; }
+    .intro-note { max-width: 40ch; font-size: .9rem; margin-bottom: 12px; }
+    .garage { margin: 12px -12px 0; }
+    .car-caption { display: flex; gap: 12px; padding: 0 12px; }
+    .car-name { font-size: 1.1rem; }
+    .car-detail { max-width: 21ch; font-size: .7rem; }
+    .drive-link { font-size: .8rem; padding: 8px 12px; gap: 10px; margin: 0; }
+    .drive-note { padding-inline: 12px; font-size: .7rem; }
+    .page-content { padding-inline: 24px; }
+    .work-section { padding-block: 40px 48px; }
+    .section-heading { gap: 16px; align-items: start; margin-bottom: 24px; }
+    .section-heading h2 { max-width: 16ch; }
+    .work-layout, .about-section { grid-template-columns: 1fr; gap: 40px; }
+    .project-image { padding: 12px; }
+    .research { padding: 0; }
+    .research h3 { max-width: 22ch; font-size: 1.75rem; margin-bottom: 20px; }
+    .teaching-note { margin-top: 20px; }
+    .about-section { padding-block: 36px 24px; gap: 28px; }
+    footer { display: block; padding-block: 28px; }
+    .footer-links { gap: 24px; margin-top: 16px; }
+  }
+  @media (max-width: 360px) {
+    .intro-inner, .page-content { padding-inline: 20px; }
+    .car-caption { gap: 8px; }
+    .drive-link { padding-inline: 10px; gap: 6px; }
   }
 </style>
