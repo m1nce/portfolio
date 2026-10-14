@@ -221,7 +221,7 @@
 </script>
 
 <svelte:head>
-  <title>The scenic route — Minchan Kim</title>
+  <title>The scenic route | Minchan Kim</title>
   <meta name="description" content="Drive a green MX-5 through Minchan's open valley. Meet pixel characters, discover his work, or take the direct route to his portfolio." />
   <meta name="theme-color" content="#233c2e" />
 </svelte:head>

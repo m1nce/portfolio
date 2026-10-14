@@ -1,16 +1,18 @@
-/** @type {Array<{role: string, org: string, dates: string, period: string, type: 'research'|'industry'|'teaching'|'education', description: string}>} */
+/** @type {Array<{role: string, org: string, logo: string, dates: string, period: string, type: 'research'|'industry'|'teaching'|'education', description: string}>} */
 export const experiences = [
   {
     role: 'Machine Learning Intern',
     org: 'Apple',
+    logo: '/img/organizations/apple.ico',
     dates: 'Jun 2026 - Sep 2026',
     period: 'Jun 2026 - Sep 2026',
     type: 'industry',
-    description: 'Accepted offer to join the Climate Software Solutions team.'
+    description: 'Supported Apple’s 2030 mission as part of the Climate Software Solutions team.'
   },
   {
     role: 'Teaching Assistant',
     org: 'UCSD - DSC 10 Principles of Data Science',
+    logo: '/img/organizations/ucsd.png',
     dates: 'Jan 2026 - March 2026',
     period: 'Jan - Mar 2026',
     type: 'teaching',
@@ -19,6 +21,7 @@ export const experiences = [
   {
     role: 'Project Lead',
     org: 'UCSD HDSI - dstl lab',
+    logo: '/img/organizations/ucsd.png',
     dates: 'Oct 2025 - Present',
     period: 'Sep 2025 - Present',
     type: 'research',
@@ -27,14 +30,16 @@ export const experiences = [
   {
     role: 'Business Intelligence Specialist',
     org: 'UCSD Business Financial Services',
-    dates: 'Oct 2025 - Present',
-    period: 'Sep 2025 - Present',
+    logo: '/img/organizations/ucsd.png',
+    dates: 'Oct 2025 - Jun 2026',
+    period: 'Oct 2025 - Jun 2026',
     type: 'industry',
     description: 'Optimized SQL queries in OTBI and improved dashboards in IBM Cognos Analytics.'
   },
   {
     role: 'M.S. Data Science',
     org: 'University of California San Diego',
+    logo: '/img/organizations/ucsd.png',
     dates: 'Sep 2025 - Jun 2027',
     period: 'Sep 2025 - Present',
     type: 'education',
@@ -43,6 +48,7 @@ export const experiences = [
   {
     role: 'Data Science Intern',
     org: 'Southern California Edison',
+    logo: '/img/organizations/sce.svg',
     dates: 'Jun 2025 - Nov 2025',
     period: 'Jun 2025 - Nov 2025',
     type: 'industry',
@@ -51,6 +57,7 @@ export const experiences = [
   {
     role: 'Consulting Intern',
     org: 'EY',
+    logo: '/img/organizations/ey.png',
     dates: 'Jul 2024 - Sep 2024',
     period: 'Jul 2024 - Sep 2024',
     type: 'industry',
@@ -59,6 +66,7 @@ export const experiences = [
   {
     role: 'Instructional Assistant',
     org: 'UCSD - DSC 10 Principles of Data Science',
+    logo: '/img/organizations/ucsd.png',
     dates: 'Mar 2024 - Jun 2025',
     period: 'Sep 2022 - Jun 2025',
     type: 'teaching',
@@ -67,6 +75,7 @@ export const experiences = [
   {
     role: 'B.S. Data Science',
     org: 'University of California San Diego',
+    logo: '/img/organizations/ucsd.png',
     dates: 'Sep 2022 - Jun 2025',
     period: 'Sep 2022 - Jun 2025',
     type: 'education',

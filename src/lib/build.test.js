@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
 const home = readFileSync(new URL('../../build/index.html', import.meta.url), 'utf8');
-for (const id of ['work', 'about', 'contact']) assert.ok(home.includes(`id="${id}"`), `Missing portfolio section: ${id}`);
-assert.match(home, /href="[^\"]*\/world\/"/, 'The portfolio must link to the playable world');
+for (const id of ['work', 'contact']) assert.ok(home.includes(`id="${id}"`), `Missing portfolio section: ${id}`);
+const about = readFileSync(new URL('../../build/about/index.html', import.meta.url), 'utf8');
+assert.match(about, /href="[^\"]*\/world\/"/, 'The portfolio must link to the playable world');
 const worldPath = new URL('../../build/world/index.html', import.meta.url);
 assert.ok(existsSync(worldPath), 'Free driving must have a separately accessible route');
 const world = readFileSync(worldPath, 'utf8');

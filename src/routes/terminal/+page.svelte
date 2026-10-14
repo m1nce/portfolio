@@ -29,25 +29,24 @@ Type 'help' to see available commands.`;
   const COMMANDS = {
     help: () => `Available commands:
 
-  whoami        — short bio
-  ls            — list sections
-  cat projects  — view all projects
-  cat experience — view experience
-  cat skills    — view skills
-  email         — draft an email to me
-  github        — open GitHub profile
-  linkedin      — open LinkedIn profile
-  date          — current date/time
-  echo <text>   — echo text back
-  clear         — clear terminal
-  help          — show this message`,
+  whoami        | short bio
+  ls            | list sections
+  cat projects  | view all projects
+  cat experience | view experience
+  cat skills    | view skills
+  email         | draft an email to me
+  github        | open GitHub profile
+  linkedin      | open LinkedIn profile
+  date          | current date/time
+  echo <text>   | echo text back
+  clear         | clear terminal
+  help          | show this message`,
 
-    whoami: () => `Minchan Kim — undergraduate at MIT studying Computer Science
+    whoami: () => `Minchan Kim | Data Science master’s student at UC San Diego
 with a focus on Human-Computer Interaction and Machine Learning.
 
 My work sits at the intersection of how people make sense of complex
-temporal data and how AI systems can be designed to support — rather
-than replace — human judgment. Especially interested in annotation
+temporal data and how AI systems can be designed to support human judgment. Especially interested in annotation
 interfaces where domain experts and ML models collaborate to build
 more reliable ground truth.`,
 
@@ -202,7 +201,7 @@ Research:   HCI Methods, User Studies, Time-Series ML, LLMs`;
 </script>
 
 <svelte:head>
-  <title>Terminal — Minchan Kim</title>
+  <title>Terminal | Minchan Kim</title>
 </svelte:head>
 
 <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->

@@ -8,6 +8,6 @@
 
 <a class="skip-link" href="#main-content">Skip to content</a>
 {#if !world}<Sidebar />{/if}
-<main id="main-content" class:inner-page={!home && !world}>
+<main id="main-content" class:inner-page={!home && !world} class:wide-page={['/projects', '/about'].includes($page.route.id)}>
   <slot />
 </main>

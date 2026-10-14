@@ -4,35 +4,43 @@
   export let description = '';
   export let tags = [];
   export let link = '';
+  export let demo = '';
+  export let demoLabel = 'View project';
   export let image = '';
+  export let imageAlt = '';
+  export let imageCaption = '';
+  export let credit = '';
 </script>
 
 <article class="project-card">
+  <h2>{title}</h2>
   {#if image}
-    <a class="project-image" href={link} target="_blank" rel="noopener noreferrer" aria-label={'View ' + title}>
-      <img src="{base}{image}" alt={title === 'Portfolio Site' ? 'Illustrated Southern California mountain terrain' : 'BabyPandas documentation website'} loading="lazy" />
-      <span class="image-link" aria-hidden="true">↗</span>
-    </a>
+    <figure>
+      <a class="project-image" href={demo || link} target="_blank" rel="noopener noreferrer" aria-label={'Explore ' + title}>
+        <img src="{base}{image}" alt={imageAlt} loading="lazy" />
+      </a>
+      <figcaption>{imageCaption}</figcaption>
+    </figure>
   {/if}
-  <div class="card-body">
-    <h3><a href={link} target="_blank" rel="noopener noreferrer">{title}</a></h3>
-    <p>{description}</p>
-    {#if tags.length}
-      <ul class="tags">{#each tags as tag}<li>{tag}</li>{/each}</ul>
-    {/if}
+  <p>{description}</p>
+  <p class="credit">{credit}</p>
+  <ul class="tags" aria-label="Project topics">{#each tags as tag}<li>{tag}</li>{/each}</ul>
+  <div class="project-links">
+    {#if demo}<a href={demo} target="_blank" rel="noopener noreferrer">{demoLabel}</a>{/if}
+    <a href={link} target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> for {title}</span></a>
   </div>
 </article>
 
 <style>
   .project-card { min-width: 0; }
-  .project-image { display: block; position: relative; overflow: hidden; background: var(--bg-elevated); }
-  img { display: block; width: 100%; aspect-ratio: 2.6; object-fit: cover; object-position: center 40%; }
-  .image-link { position: absolute; right: 0.6rem; bottom: 0.6rem; display: grid; place-items: center; width: 30px; height: 30px; background: var(--bg); color: var(--text); font-size: 1.1rem; }
-  .card-body { padding-top: 1rem; }
-  h3 { font-size: 1.1rem; font-weight: 600; line-height: 1.3; margin: 0 0 0.6rem; }
-  h3 a { text-decoration: none; }
-  h3 a:hover { text-decoration: underline; }
-  p { font-size: 0.85rem; line-height: 1.65; color: var(--text-muted); margin: 0 0 0.85rem; }
-  .tags { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; list-style: none; padding: 0; margin: 0; }
-  .tags li { font-size: 0.68rem; color: var(--text-muted); }
+  h2 { font-size: 1.125rem; margin: 0 0 20px; }
+  figure { margin: 0 0 20px; }
+  .project-image { display: block; aspect-ratio: 16 / 10; background: #fff; border: 1px solid var(--border); }
+  img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  figcaption { margin-top: 8px; color: var(--text-muted); font-size: .75rem; }
+  p { margin-bottom: 12px; }
+  .credit { color: var(--text-muted); font-size: .875rem; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; margin: 16px 0 8px; color: var(--text-muted); font-size: .8rem; }
+  .project-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  .project-links a { display: inline-flex; align-items: center; min-height: 44px; font-size: .9rem; }
 </style>
